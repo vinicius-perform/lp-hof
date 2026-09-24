@@ -294,7 +294,13 @@ function Hero({ setLeadName, utms }: HeroProps) {
   );
 }
 
-// FORMULÁRIO DE CADASTRO (ETAPA ÚNICA - 5 CAMPOS)
+const UF_LIST = [
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
+  "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
+  "RS", "RO", "RR", "SC", "SP", "SE", "TO"
+];
+
+// FORMULÁRIO DE CADASTRO MULTIETAPAS
 interface MultistepFormCardProps {
   setLeadName: (val: string) => void;
   utms: any;
@@ -309,11 +315,12 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [crmNumber, setCrmNumber] = useState("");
+  const [crmUf, setCrmUf] = useState("");
   const [instagram, setInstagram] = useState("");
-  const [especialidade, setEspecialidade] = useState("");
   const [faturamento, setFaturamento] = useState("");
   const [investimento, setInvestimento] = useState("");
-  const [gargalo, setGargalo] = useState("");
+  const [prazo, setPrazo] = useState("");
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let input = e.target.value.replace(/\D/g, "");
@@ -345,6 +352,15 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
       alert("Por favor, informe um WhatsApp válido com DDD.");
       return;
     }
+    const cleanCrm = crmNumber.replace(/\D/g, "");
+    if (!cleanCrm || cleanCrm.length < 4) {
+      alert("Por favor, informe um número de CRM válido com no mínimo 4 dígitos.");
+      return;
+    }
+    if (!crmUf) {
+      alert("Por favor, selecione o estado (UF) do seu CRM.");
+      return;
+    }
     
     trackCustomEvent("FormStepComplete", { step: 1, form_id: formId });
     setStep(2);
@@ -357,10 +373,6 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
       alert("Por favor, informe o Instagram da clínica.");
       return;
     }
-    if (!especialidade) {
-      alert("Por favor, selecione a principal especialidade.");
-      return;
-    }
     if (!faturamento) {
       alert("Por favor, selecione a faixa de faturamento mensal.");
       return;
@@ -369,8 +381,8 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
       alert("Por favor, selecione o investimento atual em marketing.");
       return;
     }
-    if (!gargalo) {
-      alert("Por favor, selecione o principal gargalo da operação.");
+    if (!prazo) {
+      alert("Por favor, selecione o prazo estimado para iniciar.");
       return;
     }
 
@@ -420,15 +432,22 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     }
     const fbpCookie = getCookie("_fbp");
     const externalId = `fa_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const fullCrm = `${crmNumber.trim()}/${crmUf.toUpperCase()}`;
 
     const payload = {
       timestamp: new Date().toLocaleString("pt-BR"),
+      lp: "LP1",
+      identificacao_lp: "LP1",
+      origem_lp: "LP1",
       name: name,
       email: email,
       phone: phone,
+      crm: fullCrm,
+      crm_numero: crmNumber.trim(),
+      crm_uf: crmUf.toUpperCase(),
       clinicInstagram: instagram,
       clinicName: instagram,
-      objective: gargalo,
+      objective: prazo,
       revenue: faturamento,
       traffic: investimento,
       score: score,
@@ -437,12 +456,15 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
       nome: name,
       e_mail: email,
       whatsapp: phone,
+      crm: fullCrm,
+      CRM: fullCrm,
       instagram_clinica: instagram,
-      especialidade: especialidade,
+      especialidade: fullCrm,
       faturamento_mensal: faturamento,
       investimento_marketing: investimento,
-      objetivo_principal: gargalo,
-      prazo_inicio: "Imediato",
+      objetivo_principal: "",
+      prazo_inicio: prazo,
+      prazo: prazo,
       tipo_lead: leadClass,
       lead_type: leadClass,
 
@@ -489,7 +511,7 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     };
 
     try {
-      const WEBHOOK_URL = import.meta.env.VITE_SHEETS_WEBHOOK_URL || "https://script.google.com/macros/s/AKfycbzV7rVVZVCUXdm-GbfrSgRdqREgVi9CzA4BEebCPPNaqq2UDBYV2YsHCoomXoUP2YkNuQ/exec";
+      const WEBHOOK_URL = import.meta.env.VITE_SHEETS_WEBHOOK_URL || "https://script.google.com/macros/s/AKfycbygkGV6P-Hp90BGHqsLfxF8MMO97EWkUKGEdK0UN1QChG8MU0QP-T68MHq0qz06g2wRtQ/exec";
       
       await fetch(WEBHOOK_URL, {
         method: "POST",
@@ -591,11 +613,12 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
                 setName("");
                 setEmail("");
                 setPhone("");
+                setCrmNumber("");
+                setCrmUf("");
                 setInstagram("");
-                setEspecialidade("");
                 setFaturamento("");
                 setInvestimento("");
-                setGargalo("");
+                setPrazo("");
               }}
               className="absolute top-4 right-4 text-[#667066] hover:text-[#FFFFFF] transition-colors p-1"
             >
@@ -640,11 +663,12 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
                 setName("");
                 setEmail("");
                 setPhone("");
+                setCrmNumber("");
+                setCrmUf("");
                 setInstagram("");
-                setEspecialidade("");
                 setFaturamento("");
                 setInvestimento("");
-                setGargalo("");
+                setPrazo("");
               }}
               className="mt-6 w-full inline-flex h-[52px] items-center justify-center rounded-lg bg-[#8CFF00] font-black uppercase tracking-wider text-[#050705] hover:bg-[#68BF00] transition-all cursor-pointer shadow-md text-xs sm:text-sm"
             >
@@ -720,6 +744,41 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
               />
             </div>
 
+            <div>
+              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-[#050705] mb-1">
+                CRM (Número e Estado) *
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <input 
+                    required 
+                    type="text" 
+                    inputMode="numeric"
+                    placeholder="Ex: 123456" 
+                    value={crmNumber}
+                    onChange={e => setCrmNumber(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                    className={inputCls} 
+                  />
+                </div>
+                <div>
+                  <select 
+                    required 
+                    value={crmUf} 
+                    onChange={e => setCrmUf(e.target.value)} 
+                    className={inputCls}
+                  >
+                    <option value="" disabled>UF</option>
+                    {UF_LIST.map(uf => (
+                      <option key={uf} value={uf}>{uf}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <p className="mt-1 text-[10px] text-[#667066] font-medium">
+                Diagnóstico exclusivo para médicos com CRM ativo.
+              </p>
+            </div>
+
             <button
               type="button"
               onClick={handleNextStep}
@@ -745,26 +804,6 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
                 onChange={e => setInstagram(e.target.value)}
                 className={inputCls} 
               />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-[#050705] mb-1">
-                Principal Especialidade *
-              </label>
-              <select required value={especialidade} onChange={e => setEspecialidade(e.target.value)} className={inputCls}>
-                <option value="" disabled>Selecione uma especialidade</option>
-                <option>Harmonização facial</option>
-                <option>Full Face / Face to Face</option>
-                <option>Harmonização corporal</option>
-                <option>Remodelação corporal</option>
-                <option>Procedimentos glúteos</option>
-                <option>Odontologia estética</option>
-                <option>Dermatologia estética</option>
-                <option>Cirurgia plástica</option>
-                <option>Emagrecimento</option>
-                <option>Estética avançada</option>
-                <option>Outra especialidade</option>
-              </select>
             </div>
 
             <div>
@@ -796,20 +835,14 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
 
             <div>
               <label className="block text-[11px] font-extrabold uppercase tracking-wider text-[#050705] mb-1">
-                Principal Gargalo da Operação *
+                Prazo Estimado para Iniciar *
               </label>
-              <select required value={gargalo} onChange={e => setGargalo(e.target.value)} className={inputCls}>
-                <option value="" disabled>Qual o maior desafio hoje?</option>
-                <option>Posicionamento e conteúdo</option>
-                <option>Geração de leads</option>
-                <option>Qualidade dos leads</option>
-                <option>Agendamento de consultas</option>
-                <option>Atendimento dos contatos</option>
-                <option>Follow-up</option>
-                <option>Conversão em procedimentos</option>
-                <option>Falta de dados</option>
-                <option>Dependência de indicações</option>
-                <option>Não sei identificar</option>
+              <select required value={prazo} onChange={e => setPrazo(e.target.value)} className={inputCls}>
+                <option value="" disabled>Selecione um prazo estimado</option>
+                <option value="Quero iniciar agora">Quero iniciar agora</option>
+                <option value="Nos próximos 30 dias">Nos próximos 30 dias</option>
+                <option value="Nos próximos 60 a 90 dias">Nos próximos 60 a 90 dias</option>
+                <option value="Estou pesquisando possibilidades">Estou pesquisando possibilidades</option>
               </select>
             </div>
 
