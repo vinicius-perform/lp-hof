@@ -456,7 +456,6 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
       nome: name,
       e_mail: email,
       whatsapp: phone,
-      crm: fullCrm,
       CRM: fullCrm,
       instagram_clinica: instagram,
       especialidade: fullCrm,
