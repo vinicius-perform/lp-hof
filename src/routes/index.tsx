@@ -13,8 +13,12 @@ import {
   Loader2, 
   X, 
   Lock, 
-  Clock, 
-  CheckCircle2
+  Clock,
+  CheckCircle2,
+  Zap,
+  ShieldCheck,
+  AlertTriangle,
+  Sparkles
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -313,6 +317,86 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
   const [faturamento, setFaturamento] = useState("");
   const [investimento, setInvestimento] = useState("");
   const [prazo, setPrazo] = useState("");
+  const [fakeProgress, setFakeProgress] = useState(25);
+
+  useEffect(() => {
+    if (!isSubmitted) {
+      setFakeProgress(25);
+      return;
+    }
+    const t1 = setTimeout(() => setFakeProgress(52), 700);
+    const t2 = setTimeout(() => setFakeProgress(78), 1800);
+    const t3 = setTimeout(() => setFakeProgress(94), 3000);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [isSubmitted]);
+
+  const handleGoToVipCheckout = () => {
+    trackCustomEvent("VIPFastTrackCheckoutClick", {
+      value: 19.90,
+      form_id: formId,
+      lead_name: name,
+      lead_phone: phone,
+      lead_email: email
+    });
+    if (typeof window !== "undefined") {
+      const win = window as any;
+      if (typeof win.fbq === "function") {
+        win.fbq("track", "InitiateCheckout", {
+          content_name: "Diagnostico Estrategico VIP - Furar Fila",
+          currency: "BRL",
+          value: 19.90
+        });
+      }
+    }
+    const kiwiBase = "https://pay.kiwify.com.br/LjM9uMe";
+    const params = new URLSearchParams();
+    if (name) params.append("name", name);
+    if (email) params.append("email", email);
+    if (phone) {
+      const cleanPhone = phone.replace(/\D/g, "");
+      params.append("phone", cleanPhone);
+    }
+    if (utms?.utm_source) params.append("utm_source", utms.utm_source);
+    if (utms?.utm_medium) params.append("utm_medium", utms.utm_medium);
+    if (utms?.utm_campaign) params.append("utm_campaign", utms.utm_campaign);
+    if (utms?.utm_content) params.append("utm_content", utms.utm_content);
+    if (utms?.utm_term) params.append("utm_term", utms.utm_term);
+    if (utms?.fbclid) params.append("fbclid", utms.fbclid);
+    const fullUrl = `${kiwiBase}?${params.toString()}`;
+    const popupWidth = 520;
+    const popupHeight = 800;
+    const left = typeof window !== "undefined" ? Math.max(0, (window.screen.width - popupWidth) / 2) : 0;
+    const top = typeof window !== "undefined" ? Math.max(0, (window.screen.height - popupHeight) / 2) : 0;
+    
+    // Abre como uma janela pop-up dedicada sobre a página atual
+    const checkoutWindow = window.open(
+      fullUrl,
+      "kiwify_checkout",
+      `width=${popupWidth},height=${popupHeight},top=${top},left=${left},scrollbars=yes,resizable=yes`
+    );
+    
+    // Fallback: se o navegador bloquear janela popup, abre em nova aba para não perder a página original
+    if (!checkoutWindow || checkoutWindow.closed || typeof checkoutWindow.closed === "undefined") {
+      window.open(fullUrl, "_blank");
+    }
+  };
+
+  const handleCloseModal = () => {
+    setIsSubmitted(false);
+    setStep(1);
+    setName("");
+    setEmail("");
+    setPhone("");
+    setInstagram("");
+    setFaturamento("");
+    setInvestimento("");
+    setPrazo("");
+    setFakeProgress(25);
+  };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let input = e.target.value.replace(/\D/g, "");
@@ -585,72 +669,110 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
   return (
     <div className="rounded-2xl border border-[#DDE2D9] bg-[#F4F6F1] p-6 sm:p-7 shadow-xl relative text-left text-[#050705]">
       {isSubmitted && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-          <div className="relative w-full max-w-md rounded-2xl border border-[#252A25] bg-[#0B0E0B] p-6 sm:p-8 text-center text-[#FFFFFF] shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in overflow-y-auto">
+          <div className="relative my-auto w-full max-w-xl rounded-2xl border border-[#252A25] bg-[#0A0D0A] p-5 sm:p-7 text-center text-[#FFFFFF] shadow-[0_0_50px_rgba(0,0,0,0.9)] max-h-[92vh] overflow-y-auto">
+            
+            {/* Botão de Fechar discreto */}
             <button
-              onClick={() => {
-                setIsSubmitted(false);
-                setStep(1);
-                setName("");
-                setEmail("");
-                setPhone("");
-                setInstagram("");
-                setFaturamento("");
-                setInvestimento("");
-                setPrazo("");
-              }}
-              className="absolute top-4 right-4 text-[#667066] hover:text-[#FFFFFF] transition-colors p-1"
+              onClick={handleCloseModal}
+              className="absolute top-4 right-4 text-[#667066] hover:text-[#FFFFFF] transition-colors p-1.5 rounded-lg hover:bg-[#1A1F1A]"
+              aria-label="Fechar"
             >
               <X className="h-5 w-5" />
             </button>
 
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#8CFF00]/15 border border-[#8CFF00]/40 text-[#8CFF00] shadow-[0_0_25px_rgba(140,255,0,0.3)]">
-              <CheckCircle2 className="h-9 w-9" />
-            </div>
-
-            <span className="inline-flex items-center gap-1.5 rounded-md bg-[#8CFF00]/10 px-3 py-1 text-[11px] font-black uppercase tracking-widest text-[#8CFF00] mb-3">
-              Diagnóstico Solicitado
-            </span>
-
-            <h3 className="text-2xl font-black tracking-tight text-[#FFFFFF]">
-              Obrigado pelo envio{name ? `, ${name}` : ''}!
-            </h3>
-
-            <p className="mt-3 text-sm text-[#F4F6F1]/80 leading-relaxed font-medium">
-              Recebemos suas informações com sucesso. Nosso time de especialistas analisará o perfil da sua clínica e entrará em contato via <strong className="text-[#8CFF00]">ligação telefônica</strong> muito em breve.
-            </p>
-
-            <div className="mt-6 rounded-xl border border-[#252A25] bg-[#050705] p-4 text-left space-y-3">
-              <div className="flex items-center gap-3 text-xs font-semibold text-[#F4F6F1]">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#8CFF00]/20 text-[#8CFF00]">
-                  📞
+            {/* CARREGAMENTO FAKE SIMPLIFICADO */}
+            <div className="rounded-xl border border-[#252A25] bg-[#050705] p-4 sm:p-5 mb-5 text-left relative overflow-hidden">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="relative flex h-2.5 w-2.5 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#8CFF00] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#8CFF00]"></span>
+                  </span>
+                  <span className="text-xs sm:text-sm font-extrabold text-[#FFFFFF]">
+                    Processando seu cadastro e alocando na fila de espera...
+                  </span>
                 </div>
-                <span><strong>Fique atento ao telefone:</strong> Ligaremos para o número informado no cadastro.</span>
+                <span className="text-xs font-extrabold text-[#8CFF00] font-mono shrink-0">
+                  {fakeProgress}%
+                </span>
               </div>
-              <div className="flex items-center gap-3 text-xs font-semibold text-[#F4F6F1]">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#8CFF00]/20 text-[#8CFF00]">
-                  🎯
-                </div>
-                <span><strong>Próximo passo:</strong> Apresentação do plano tático personalizado para sua clínica.</span>
+
+              {/* Barra de Progresso Animada */}
+              <div className="h-2.5 w-full bg-[#181D18] rounded-full overflow-hidden p-0.5 border border-[#252A25]">
+                <div
+                  className="h-full bg-gradient-to-r from-[#5FAE00] via-[#8CFF00] to-[#B6FF4D] rounded-full transition-all duration-700 ease-out shadow-[0_0_12px_rgba(140,255,0,0.6)]"
+                  style={{ width: `${fakeProgress}%` }}
+                />
               </div>
             </div>
 
-            <button
-              onClick={() => {
-                setIsSubmitted(false);
-                setStep(1);
-                setName("");
-                setEmail("");
-                setPhone("");
-                setInstagram("");
-                setFaturamento("");
-                setInvestimento("");
-                setPrazo("");
-              }}
-              className="mt-6 w-full inline-flex h-[52px] items-center justify-center rounded-lg bg-[#8CFF00] font-black uppercase tracking-wider text-[#050705] hover:bg-[#68BF00] transition-all cursor-pointer shadow-md text-xs sm:text-sm"
-            >
-              Entendi, Concluir
-            </button>
+            {/* BLOCO 2: CTA AGRESSIVA PARA FURAR A FILA */}
+            <div className="space-y-4">
+              
+              {/* Badge de Urgência / Oportunidade VIP */}
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-red-500/15 border border-red-500/30 px-3.5 py-1 text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-red-400 shadow-sm animate-pulse">
+                <Zap className="h-3.5 w-3.5 fill-red-400 text-red-400" />
+                ACESSO PRIORITÁRIO VIP • FURE A FILA
+              </div>
+
+              {/* Headline Agressiva */}
+              <h3 className="text-xl sm:text-2xl lg:text-[25px] font-black tracking-tight text-[#FFFFFF] leading-snug">
+                Não quer esperar 72 horas na fila? <br className="hidden sm:inline" />
+                <span className="text-[#8CFF00]">Fure a fila</span> e receba seu Diagnóstico Exclusivo <span className="underline decoration-[#8CFF00] decoration-2">hoje</span>.
+              </h3>
+
+              {/* Subhead Explicativo */}
+              <p className="text-xs sm:text-sm text-[#F4F6F1]/80 leading-relaxed max-w-lg mx-auto">
+                Devido à alta procura de médicos e clínicas, a fila comum gratuita possui tempo de espera de 2 a 3 dias úteis. Ao ativar o <strong>Acesso VIP Prioritário</strong> por uma taxa simbólica, sua clínica salta direto para a <strong>mesa do nosso Diretor de Estratégia</strong>.
+              </p>
+
+              {/* Bloco de Preço & Oferta Irresistível */}
+              <div className="pt-1">
+                <div className="flex items-center justify-center gap-2 text-xs font-bold text-[#667066] uppercase tracking-wider mb-1">
+                  <span>De <span className="line-through text-red-400/80">R$ 197,00</span></span>
+                  <span>•</span>
+                  <span className="text-[#8CFF00] font-black">Taxa simbólica de prioridade:</span>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-[#8CFF00] tracking-tight">
+                  R$ 19,90 <span className="text-xs sm:text-sm font-semibold text-[#F4F6F1]/70 tracking-normal">(pagamento único)</span>
+                </div>
+              </div>
+
+              {/* BOTÃO PRINCIPAL (CTA MEGA AGRESSIVA) */}
+              <button
+                type="button"
+                onClick={handleGoToVipCheckout}
+                className="group relative w-full inline-flex flex-col sm:flex-row h-auto sm:h-[58px] items-center justify-center gap-2 rounded-xl bg-[#8CFF00] px-6 py-3.5 sm:py-0 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all hover:bg-[#7AE000] cursor-pointer shadow-[0_0_30px_rgba(140,255,0,0.4)] hover:shadow-[0_0_40px_rgba(140,255,0,0.6)] hover:scale-[1.01]"
+              >
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 fill-[#050705] shrink-0" />
+                  <span>QUERO FURAR A FILA E ATIVAR MEU ACESSO VIP</span>
+                  <ArrowRight className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-1" />
+                </div>
+              </button>
+
+              <div className="flex items-center justify-center gap-3 text-[10px] text-[#667066] font-semibold uppercase tracking-wider">
+                <span>🔒 Checkout Seguro Kiwify</span>
+                <span>•</span>
+                <span>⚡ Acesso Imediato</span>
+                <span>•</span>
+                <span>💳 Pix ou Cartão</span>
+              </div>
+
+              {/* Opção Secundária Discreta (Esperar na fila comum) */}
+              <div className="pt-1 pb-1">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="text-[11px] sm:text-xs text-[#667066] hover:text-[#F4F6F1] underline transition-colors cursor-pointer"
+                >
+                  Não quero atendimento prioritário, prefiro aguardar até 72h na fila comum.
+                </button>
+              </div>
+
+            </div>
+
           </div>
         </div>
       )}
