@@ -492,7 +492,7 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     try {
       const WEBHOOK_URL = import.meta.env.VITE_SHEETS_WEBHOOK_URL || "https://script.google.com/macros/s/AKfycbygkGV6P-Hp90BGHqsLfxF8MMO97EWkUKGEdK0UN1QChG8MU0QP-T68MHq0qz06g2wRtQ/exec";
 
-      await fetch(WEBHOOK_URL, {
+      await fetch(`${WEBHOOK_URL}?action=confirm_schedule`, {
         method: "POST",
         mode: "no-cors",
         headers: { "Content-Type": "text/plain;charset=utf-8" },

@@ -38,7 +38,20 @@ function doPost(e) {
   try {
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     
-    // Garantir decodificação UTF-8 correta para acentuação
+    // 1. Garantir que a planilha tenha pelo menos 27 colunas (A até AA) para nunca dar erro de dimensão
+    if (sheet.getMaxColumns() < 27) {
+      sheet.insertColumnsAfter(sheet.getMaxColumns(), 27 - sheet.getMaxColumns());
+    }
+
+    // 2. Garantir cabeçalhos Z (DATA DE AGENDAMENTO) e AA (CLOSER) se a linha 1 existir
+    if (sheet.getLastRow() >= 1) {
+      var hZ = String(sheet.getRange(1, 26).getValue() || "").trim();
+      if (!hZ) sheet.getRange(1, 26).setValue("DATA DE AGENDAMENTO");
+      var hAA = String(sheet.getRange(1, 27).getValue() || "").trim();
+      if (!hAA) sheet.getRange(1, 27).setValue("CLOSER");
+    }
+
+    // 3. Garantir decodificação UTF-8 correta para acentuação
     var jsonString = "";
     if (e.postData && e.postData.bytes) {
       jsonString = Utilities.newBlob(e.postData.bytes).getDataAsString("UTF-8");
@@ -48,21 +61,31 @@ function doPost(e) {
       jsonString = "{}";
     }
     
-    var data = JSON.parse(jsonString);
+    var data = {};
+    try {
+      data = JSON.parse(jsonString);
+    } catch(errJson) {
+      data = (e && e.parameter) ? e.parameter : {};
+    }
+
+    var action = (data && data.action) || (e && e.parameter && e.parameter.action) || "";
 
     // 1. ENDPOINT PARA CONSULTA DE HORÁRIOS OCUPADOS (Por Closer)
-    if (data.action === "get_booked_slots") {
-      var closerFiltro = String(data.closer || "").trim().toLowerCase();
+    if (action === "get_booked_slots") {
+      var closerFiltro = String(data.closer || (e && e.parameter && e.parameter.closer) || "").trim().toLowerCase();
       var booked = [];
       var lastR = sheet.getLastRow();
       if (lastR > 1) {
-        var slotValues = sheet.getRange(2, 26, lastR - 1, 2).getValues();
-        for (var b = 0; b < slotValues.length; b++) {
-          var slotStr = String(slotValues[b][0] || "").trim();
-          var slotCloser = String(slotValues[b][1] || "").trim().toLowerCase();
-          if (slotStr && slotStr !== "NÃO AGENDADA" && slotStr !== "") {
-            if (!closerFiltro || slotCloser === closerFiltro) {
-              booked.push(slotStr);
+        var numCols = Math.min(27, sheet.getLastColumn());
+        if (numCols >= 26) {
+          var slotValues = sheet.getRange(2, 26, lastR - 1, numCols >= 27 ? 2 : 1).getValues();
+          for (var b = 0; b < slotValues.length; b++) {
+            var slotStr = String(slotValues[b][0] || "").trim();
+            var slotCloser = slotValues[b][1] ? String(slotValues[b][1]).trim().toLowerCase() : "";
+            if (slotStr && slotStr !== "NÃO AGENDADA" && slotStr !== "") {
+              if (!closerFiltro || !slotCloser || slotCloser === closerFiltro) {
+                booked.push(slotStr);
+              }
             }
           }
         }
@@ -74,22 +97,23 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // 2. ENDPOINT PARA CONFIRMAR AGENDAMENTO INTERNO
-    if (data.action === "confirm_schedule" || data.action === "update_agendamento") {
-      var searchExternalId = String(data.external_id || data.EXTERNAL_ID || "").trim();
-      var searchEmail = String(data.email || data.e_mail || "").trim().toLowerCase();
-      var searchPhone = String(data.phone || data.whatsapp || "").replace(/\D/g, "");
-      var dataReuniao = String(data.data_reuniao || data.agendamento_reuniao || "").trim();
-      var closerName = String(data.closer || "").trim();
+    // 2. ENDPOINT PARA CONFIRMAR AGENDAMENTO INTERNO (NUNCA CRIA LINHA DUPLICADA!)
+    if (action === "confirm_schedule" || action === "update_agendamento") {
+      var searchExternalId = String(data.external_id || data.EXTERNAL_ID || (e && e.parameter && e.parameter.external_id) || "").trim();
+      var searchEmail = String(data.email || data.e_mail || (e && e.parameter && e.parameter.email) || "").trim().toLowerCase();
+      var searchPhone = String(data.phone || data.whatsapp || (e && e.parameter && e.parameter.phone) || "").replace(/\D/g, "");
+      var dataReuniao = String(data.data_reuniao || data.agendamento_reuniao || (e && e.parameter && e.parameter.data_reuniao) || "").trim();
+      var closerName = String(data.closer || (e && e.parameter && e.parameter.closer) || "").trim();
 
       var lastRow = sheet.getLastRow();
       var targetRow = -1;
 
       if (lastRow > 1) {
-        var values = sheet.getRange(2, 1, lastRow - 1, 27).getValues();
+        var numCols = Math.min(27, sheet.getLastColumn());
+        var values = sheet.getRange(2, 1, lastRow - 1, numCols).getValues();
 
         // Busca 1: por external_id (Coluna W / índice 22)
-        if (searchExternalId) {
+        if (searchExternalId && numCols >= 23) {
           for (var i = values.length - 1; i >= 0; i--) {
             if (String(values[i][22] || "").trim() === searchExternalId) {
               targetRow = i + 2;
@@ -99,7 +123,7 @@ function doPost(e) {
         }
 
         // Busca 2: por e-mail (Coluna E / índice 4)
-        if (targetRow === -1 && searchEmail) {
+        if (targetRow === -1 && searchEmail && numCols >= 5) {
           for (var j = values.length - 1; j >= 0; j--) {
             if (String(values[j][4] || "").trim().toLowerCase() === searchEmail) {
               targetRow = j + 2;
@@ -109,7 +133,7 @@ function doPost(e) {
         }
 
         // Busca 3: por telefone (Coluna D / índice 3)
-        if (targetRow === -1 && searchPhone) {
+        if (targetRow === -1 && searchPhone && numCols >= 4) {
           for (var k = values.length - 1; k >= 0; k--) {
             var rowPhone = String(values[k][3] || "").replace(/\D/g, "");
             if (rowPhone && (rowPhone === searchPhone || rowPhone.indexOf(searchPhone) !== -1 || searchPhone.indexOf(rowPhone) !== -1)) {
@@ -119,13 +143,9 @@ function doPost(e) {
           }
         }
 
-        // Fallback: última linha se não achou e está sem agendamento
-        if (targetRow === -1 && values.length > 0) {
-          var lastIdx = values.length - 1;
-          var lastZ = String(values[lastIdx][25] || "").trim();
-          if (lastZ === "" || lastZ === "NÃO AGENDADA") {
-            targetRow = lastIdx + 2;
-          }
+        // Fallback: última linha se não achou
+        if (targetRow === -1) {
+          targetRow = lastRow;
         }
       }
 
@@ -139,7 +159,7 @@ function doPost(e) {
         // Envia evento de Schedule para Meta CAPI se ainda não enviado
         var currentCapiStatus = String(sheet.getRange(targetRow, 24).getValue() || "");
         if (!currentCapiStatus || currentCapiStatus.indexOf("(Enviado)") === -1) {
-          var leadVals = sheet.getRange(targetRow, 1, 1, 27).getValues()[0];
+          var leadVals = sheet.getRange(targetRow, 1, 1, Math.min(27, sheet.getLastColumn())).getValues()[0];
           var leadToCapi = {
             name: leadVals[2],
             phone: leadVals[3],
@@ -208,6 +228,20 @@ function doPost(e) {
     var nome = data.nome || data.name || "";
     var telefone = data.whatsapp || data.phone || "";
     var email = data.e_mail || data.email || "";
+
+    // Proteção estrita anti-duplicidade: se a requisição não tem nome, mas tem telefone/email e data_reuniao, é atualização de agendamento e NUNCA novo lead
+    if (!nome && (email || telefone) && (data.data_reuniao || data.agendamento_reuniao)) {
+      var dReuniaoRec = String(data.data_reuniao || data.agendamento_reuniao).trim();
+      var cCloserRec = String(data.closer || "").trim();
+      var lRow = sheet.getLastRow();
+      if (lRow > 1) {
+        sheet.getRange(lRow, 26).setValue(dReuniaoRec);
+        if (cCloserRec) sheet.getRange(lRow, 27).setValue(cCloserRec);
+        return ContentService
+          .createTextOutput(JSON.stringify({ result: "success_auto_recovered", updated_row: lRow }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+    }
     var nomeClinica = data.instagram_clinica || data.clinicInstagram || data.clinicName || "";
     var crm = data.crm || data.CRM || data.especialidade || "";
     var especialidade = crm;
@@ -386,19 +420,25 @@ function doGet(e) {
     var action = (e && e.parameter && e.parameter.action) || "";
     if (action === "get_booked_slots") {
       var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+      if (sheet.getMaxColumns() < 27) {
+        sheet.insertColumnsAfter(sheet.getMaxColumns(), 27 - sheet.getMaxColumns());
+      }
       var lastRow = sheet.getLastRow();
       var closerFilter = String((e.parameter && e.parameter.closer) || "").trim().toLowerCase();
       var bookedSlots = [];
       
       if (lastRow > 1) {
-        var values = sheet.getRange(2, 26, lastRow - 1, 2).getValues();
-        for (var i = 0; i < values.length; i++) {
-          var slotStr = String(values[i][0] || "").trim();
-          var slotCloser = String(values[i][1] || "").trim().toLowerCase();
-          
-          if (slotStr && slotStr !== "NÃO AGENDADA" && slotStr !== "") {
-            if (!closerFilter || slotCloser === closerFilter) {
-              bookedSlots.push(slotStr);
+        var numCols = Math.min(27, sheet.getLastColumn());
+        if (numCols >= 26) {
+          var values = sheet.getRange(2, 26, lastRow - 1, numCols >= 27 ? 2 : 1).getValues();
+          for (var i = 0; i < values.length; i++) {
+            var slotStr = String(values[i][0] || "").trim();
+            var slotCloser = values[i][1] ? String(values[i][1]).trim().toLowerCase() : "";
+            
+            if (slotStr && slotStr !== "NÃO AGENDADA" && slotStr !== "") {
+              if (!closerFilter || !slotCloser || slotCloser === closerFilter) {
+                bookedSlots.push(slotStr);
+              }
             }
           }
         }
