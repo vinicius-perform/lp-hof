@@ -409,14 +409,14 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
   }, [availableDays, selectedDate]);
 
   // Horários disponíveis para a data selecionada (intervalos de 45 min)
-  // Segunda a Sexta: 08h às 11h, 14h às 19h
-  // Sábado: 08h às 11h
+  // Segunda a Sexta: 08h às 12h, 14h às 19h
+  // Sábado: 08h às 12h
   const currentSlots = useMemo(() => {
     const curDay = availableDays.find(d => d.dateKey === selectedDate) || availableDays[0];
     if (!curDay) return { currentDay: null, morning: [], afternoon: [] };
 
     const dow = curDay.dayOfWeek;
-    const morningList = ["08:00", "08:45", "09:30", "10:15"];
+    const morningList = ["08:00", "08:45", "09:30", "10:15", "11:00"];
     const afternoonList = dow === 6
       ? []
       : ["14:00", "14:45", "15:30", "16:15", "17:00", "17:45", "18:15"];
@@ -1031,10 +1031,10 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
                   </div>
 
                   <div className="space-y-3.5 max-h-[36vh] overflow-y-auto pr-1">
-                    {/* Turno Manhã (08h às 11h) */}
+                    {/* Turno Manhã (08h às 12h) */}
                     <div>
                       <div className="text-[11px] font-bold uppercase tracking-wider text-[#667066] mb-2 flex items-center gap-1.5">
-                        <span>☀️ MANHÃ (08:00 às 11:00)</span>
+                        <span>☀️ MANHÃ (08:00 às 12:00)</span>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         {currentSlots.morning.map(slot => {
@@ -1073,7 +1073,7 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
                       </div>
                       {currentSlots.currentDay?.dayOfWeek === 6 ? (
                         <div className="rounded-lg border border-[#252A25] bg-[#121612]/60 p-3 text-center text-xs text-[#667066]">
-                          Atendimento aos sábados é exclusivo no período da manhã (08h às 11h). Para reuniões à tarde, selecione um dia útil.
+                          Atendimento aos sábados é exclusivo no período da manhã (08h às 12h). Para reuniões à tarde, selecione um dia útil.
                         </div>
                       ) : (
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
