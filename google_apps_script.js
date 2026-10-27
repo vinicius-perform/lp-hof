@@ -1,7 +1,7 @@
 /**
- * Google Apps Script - Integração Diagnóstico FA (Com suporte UTF-8, Meta Ads CAPI, Triggers, Distribuição SDR, Supabase e Identificação de LP)
+ * Google Apps Script - Integração Diagnóstico FA (Com suporte UTF-8, Meta Ads CAPI, Agendamento Interno Nativo, Distribuição SDR/Closers, Supabase e Identificação de LP)
  * 
- * Mapeamento das colunas A até Y (25 colunas):
+ * Mapeamento das colunas A até AA (27 colunas):
  * A: Data/Hora
  * B: LP (Identificação da LP: ex "LP1", "LP FA2")
  * C: Nome
@@ -19,7 +19,7 @@
  * O: Conjunto (ID do Conjunto de Anúncios)
  * P: Anúncio (ID do Anúncio)
  * Q: SDR
- * R: AGENDAMENTO (Sim / Não)
+ * R: AGENDAMENTO (Sim / Não) - Coluna 18 (NUNCA MODIFICAR MANUALMENTE!)
  * S: VENDA (Sim / Não)
  * T: VALOR DE CONVERSÃO (Número R$)
  * U: FBC_FBCLID (Cookie / ID de Clique Meta)
@@ -27,6 +27,8 @@
  * W: EXTERNAL_ID (ID Único do Lead)
  * X: CAPI_AGENDAMENTO_ENVIADO (Status/Timestamp do Envio)
  * Y: CAPI_VENDA_ENVIADO (Status/Timestamp do Envio)
+ * Z: DATA E HORA REUNIÃO (Coluna 26 - Agendamento Interno)
+ * AA: CLOSER (Coluna 27 - José ou Mathyas)
  */
 
 var META_PIXEL_ID = "1049112404466926";
@@ -47,6 +49,129 @@ function doPost(e) {
     }
     
     var data = JSON.parse(jsonString);
+
+    // 1. ENDPOINT PARA CONSULTA DE HORÁRIOS OCUPADOS (Por Closer)
+    if (data.action === "get_booked_slots") {
+      var closerFiltro = String(data.closer || "").trim().toLowerCase();
+      var booked = [];
+      var lastR = sheet.getLastRow();
+      if (lastR > 1) {
+        var slotValues = sheet.getRange(2, 26, lastR - 1, 2).getValues();
+        for (var b = 0; b < slotValues.length; b++) {
+          var slotStr = String(slotValues[b][0] || "").trim();
+          var slotCloser = String(slotValues[b][1] || "").trim().toLowerCase();
+          if (slotStr && slotStr !== "NÃO AGENDADA" && slotStr !== "") {
+            if (!closerFiltro || slotCloser === closerFiltro) {
+              booked.push(slotStr);
+            }
+          }
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({
+        result: "success",
+        closer: closerFiltro,
+        booked_slots: booked
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 2. ENDPOINT PARA CONFIRMAR AGENDAMENTO INTERNO
+    if (data.action === "confirm_schedule" || data.action === "update_agendamento") {
+      var searchExternalId = String(data.external_id || data.EXTERNAL_ID || "").trim();
+      var searchEmail = String(data.email || data.e_mail || "").trim().toLowerCase();
+      var searchPhone = String(data.phone || data.whatsapp || "").replace(/\D/g, "");
+      var dataReuniao = String(data.data_reuniao || data.agendamento_reuniao || "").trim();
+      var closerName = String(data.closer || "").trim();
+
+      var lastRow = sheet.getLastRow();
+      var targetRow = -1;
+
+      if (lastRow > 1) {
+        var values = sheet.getRange(2, 1, lastRow - 1, 27).getValues();
+
+        // Busca 1: por external_id (Coluna W / índice 22)
+        if (searchExternalId) {
+          for (var i = values.length - 1; i >= 0; i--) {
+            if (String(values[i][22] || "").trim() === searchExternalId) {
+              targetRow = i + 2;
+              break;
+            }
+          }
+        }
+
+        // Busca 2: por e-mail (Coluna E / índice 4)
+        if (targetRow === -1 && searchEmail) {
+          for (var j = values.length - 1; j >= 0; j--) {
+            if (String(values[j][4] || "").trim().toLowerCase() === searchEmail) {
+              targetRow = j + 2;
+              break;
+            }
+          }
+        }
+
+        // Busca 3: por telefone (Coluna D / índice 3)
+        if (targetRow === -1 && searchPhone) {
+          for (var k = values.length - 1; k >= 0; k--) {
+            var rowPhone = String(values[k][3] || "").replace(/\D/g, "");
+            if (rowPhone && (rowPhone === searchPhone || rowPhone.indexOf(searchPhone) !== -1 || searchPhone.indexOf(rowPhone) !== -1)) {
+              targetRow = k + 2;
+              break;
+            }
+          }
+        }
+
+        // Fallback: última linha se não achou e está sem agendamento
+        if (targetRow === -1 && values.length > 0) {
+          var lastIdx = values.length - 1;
+          var lastZ = String(values[lastIdx][25] || "").trim();
+          if (lastZ === "" || lastZ === "NÃO AGENDADA") {
+            targetRow = lastIdx + 2;
+          }
+        }
+      }
+
+      if (targetRow !== -1) {
+        // NUNCA MEXER NA COLUNA R (18) - Reservada estritamente para preenchimento manual da equipe/SDR
+        sheet.getRange(targetRow, 26).setValue(dataReuniao); // Coluna Z (DATA E HORA REUNIÃO)
+        if (closerName) {
+          sheet.getRange(targetRow, 27).setValue(closerName);  // Coluna AA (CLOSER)
+        }
+
+        // Envia evento de Schedule para Meta CAPI se ainda não enviado
+        var currentCapiStatus = String(sheet.getRange(targetRow, 24).getValue() || "");
+        if (!currentCapiStatus || currentCapiStatus.indexOf("(Enviado)") === -1) {
+          var leadVals = sheet.getRange(targetRow, 1, 1, 27).getValues()[0];
+          var leadToCapi = {
+            name: leadVals[2],
+            phone: leadVals[3],
+            email: leadVals[4],
+            fbc: leadVals[20],
+            fbp: leadVals[21],
+            externalId: leadVals[22]
+          };
+          var resSched = sendMetaCapiEvent("Schedule", leadToCapi, null);
+          if (resSched && !resSched.error && (!resSched.events_received || resSched.events_received > 0)) {
+            var nowCapi = Utilities.formatDate(new Date(), "America/Sao_Paulo", "dd/MM/yyyy HH:mm:ss");
+            sheet.getRange(targetRow, 24).setValue(nowCapi + " (Enviado)");
+          }
+        }
+
+        // Atualiza Supabase
+        enviarParaSupabase({
+          email: searchEmail,
+          telefone: searchPhone,
+          agendamento_reuniao: dataReuniao,
+          closer: closerName
+        });
+
+        return ContentService
+          .createTextOutput(JSON.stringify({ result: "success", updated_row: targetRow, data_reuniao: dataReuniao, closer: closerName }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      return ContentService
+        .createTextOutput(JSON.stringify({ result: "not_found", message: "Lead não localizado para atualizar agendamento" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
 
     // Mapeamento dos campos recebidos
     var dataHora = data.timestamp || data.data_horario || new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
@@ -148,7 +273,8 @@ function doPost(e) {
     }
 
     // Campos de Operação Comercial
-    var agendamento = data.agendamento || "";
+    // Coluna R (18) NUNCA é preenchida pelo script - estritamente manual para SDR
+    var agendamento = "";
     var venda = data.venda || "";
     var valorConversao = data.valor_conversao || "";
 
@@ -161,7 +287,30 @@ function doPost(e) {
     var capiAgendamentoEnviado = "";
     var capiVendaEnviado = "";
 
-    // Linha a ser adicionada na planilha (Colunas A -> Y, totalizando 25 colunas)
+    // Atribuição de Closer (Coluna AA) baseada estritamente na regra de Faturamento:
+    // - Menos de R$35 mil OU R$35 a R$50 mil -> José
+    // - A partir de R$50 mil (R$50 mil a R$100 mil / acima de R$100 mil) -> Mathyas
+    var closerAtribuido = "";
+    var fatuStr = String(faturamento).toLowerCase();
+    if (
+      fatuStr.indexOf("menos de") !== -1 ||
+      fatuStr.indexOf("menos de r$ 35") !== -1 ||
+      fatuStr.indexOf("35 a 50") !== -1 ||
+      fatuStr.indexOf("35 mil a 50") !== -1 ||
+      fatuStr.indexOf("35") !== -1
+    ) {
+      closerAtribuido = "José";
+    } else {
+      closerAtribuido = "Mathyas";
+    }
+    if (data.closer) {
+      closerAtribuido = data.closer;
+    }
+
+    // Data e Hora da Reunião (Coluna Z) - Inicialmente em branco até o lead selecionar no popup
+    var dataReuniao = data.data_reuniao || data.agendamento_reuniao || "";
+
+    // Linha a ser adicionada na planilha (Colunas A -> AA, totalizando 27 colunas)
     var row = [
       dataHora,               // Coluna A
       identificacaoLP,        // Coluna B (LP)
@@ -180,14 +329,16 @@ function doPost(e) {
       conjunto,               // Coluna O
       anuncio,                // Coluna P
       sdrAtribuido,           // Coluna Q
-      agendamento,            // Coluna R
+      agendamento,            // Coluna R (NUNCA MODIFICADA PELO SCRIPT)
       venda,                  // Coluna S
       valorConversao,         // Coluna T
       fbc,                    // Coluna U
       fbp,                    // Coluna V
       externalId,             // Coluna W
       capiAgendamentoEnviado, // Coluna X
-      capiVendaEnviado        // Coluna Y
+      capiVendaEnviado,       // Coluna Y
+      dataReuniao,            // Coluna Z (DATA E HORA REUNIÃO)
+      closerAtribuido         // Coluna AA (CLOSER - José ou Mathyas)
     ];
 
     sheet.appendRow(row);
@@ -213,12 +364,14 @@ function doPost(e) {
       sdr: sdrAtribuido,
       agendamento: agendamento,
       venda: venda,
-      valor_conversao: valorConversao
+      valor_conversao: valorConversao,
+      data_reuniao: dataReuniao,
+      closer: closerAtribuido
     };
     enviarParaSupabase(leadSupabase);
 
     return ContentService
-      .createTextOutput(JSON.stringify({ result: "success", row: row }))
+      .createTextOutput(JSON.stringify({ result: "success", row: row, closer: closerAtribuido }))
       .setMimeType(ContentService.MimeType.JSON);
 
   } catch (error) {
@@ -229,7 +382,42 @@ function doPost(e) {
 }
 
 function doGet(e) {
-  return ContentService.createTextOutput("Webhook de diagnóstico FA ativo com suporte a Meta CAPI, Distribuição de SDR e Múltiplas LPs!");
+  try {
+    var action = (e && e.parameter && e.parameter.action) || "";
+    if (action === "get_booked_slots") {
+      var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+      var lastRow = sheet.getLastRow();
+      var closerFilter = String((e.parameter && e.parameter.closer) || "").trim().toLowerCase();
+      var bookedSlots = [];
+      
+      if (lastRow > 1) {
+        var values = sheet.getRange(2, 26, lastRow - 1, 2).getValues();
+        for (var i = 0; i < values.length; i++) {
+          var slotStr = String(values[i][0] || "").trim();
+          var slotCloser = String(values[i][1] || "").trim().toLowerCase();
+          
+          if (slotStr && slotStr !== "NÃO AGENDADA" && slotStr !== "") {
+            if (!closerFilter || slotCloser === closerFilter) {
+              bookedSlots.push(slotStr);
+            }
+          }
+        }
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({
+        result: "success",
+        closer: closerFilter,
+        booked_slots: bookedSlots
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      result: "error",
+      message: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  return ContentService.createTextOutput("Webhook de diagnóstico FA ativo com suporte a Agendamento Interno Nativo, Meta CAPI e Closers (José e Mathyas)!");
 }
 
 /**
@@ -398,7 +586,7 @@ function onEditTrigger(e) {
   // Agora Coluna R (18) é AGENDAMENTO e Coluna S (19) é VENDA
   if (col !== 18 && col !== 19) return;
   
-  var rowValues = sheet.getRange(row, 1, 1, 25).getValues()[0];
+  var rowValues = sheet.getRange(row, 1, 1, 27).getValues()[0];
   
   var lp = rowValues[1];                 // Coluna B (2)
   var nome = rowValues[2];               // Coluna C (3)
@@ -490,7 +678,7 @@ function processAllPendingCapiEvents() {
     return;
   }
   
-  var dataRange = sheet.getRange(2, 1, lastRow - 1, 25).getValues();
+  var dataRange = sheet.getRange(2, 1, lastRow - 1, 27).getValues();
   var sentCount = 0;
   var errorCount = 0;
   var nowStr = Utilities.formatDate(new Date(), "America/Sao_Paulo", "dd/MM/yyyy HH:mm:ss");
@@ -598,7 +786,7 @@ function sincronizarHistoricoSupabase() {
     return;
   }
   
-  var dataRange = sheet.getRange(2, 1, lastRow - 1, 25).getValues();
+  var dataRange = sheet.getRange(2, 1, lastRow - 1, 27).getValues();
   var successCount = 0;
   var errorCount = 0;
   
