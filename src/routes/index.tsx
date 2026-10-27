@@ -298,6 +298,12 @@ function Hero({ setLeadName, utms }: HeroProps) {
   );
 }
 
+const UF_LIST = [
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
+  "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
+  "RS", "RO", "RR", "SC", "SP", "SE", "TO"
+];
+
 // FORMULÁRIO DE CADASTRO MULTIETAPAS
 interface MultistepFormCardProps {
   setLeadName: (val: string) => void;
@@ -313,6 +319,8 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [crmNumber, setCrmNumber] = useState("");
+  const [crmUf, setCrmUf] = useState("");
   const [instagram, setInstagram] = useState("");
   const [faturamento, setFaturamento] = useState("");
   const [investimento, setInvestimento] = useState("");
@@ -391,6 +399,8 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     setName("");
     setEmail("");
     setPhone("");
+    setCrmNumber("");
+    setCrmUf("");
     setInstagram("");
     setFaturamento("");
     setInvestimento("");
@@ -438,6 +448,15 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     
     if (!instagram || instagram.trim().length < 2) {
       alert("Por favor, informe o Instagram da clínica.");
+      return;
+    }
+    const cleanCrm = crmNumber.replace(/\D/g, "");
+    if (!cleanCrm || cleanCrm.length < 4) {
+      alert("Por favor, informe um número de CRM válido com no mínimo 4 dígitos.");
+      return;
+    }
+    if (!crmUf) {
+      alert("Por favor, selecione o estado (UF) do seu CRM.");
       return;
     }
     if (!faturamento) {
@@ -499,6 +518,7 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     }
     const fbpCookie = getCookie("_fbp");
     const externalId = `fa_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const fullCrm = `${crmNumber.trim()}/${crmUf.toUpperCase()}`;
 
     const payload = {
       timestamp: new Date().toLocaleString("pt-BR"),
@@ -508,9 +528,9 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
       name: name,
       email: email,
       phone: phone,
-      crm: "",
-      crm_numero: "",
-      crm_uf: "",
+      crm: fullCrm,
+      crm_numero: crmNumber.trim(),
+      crm_uf: crmUf.toUpperCase(),
       clinicInstagram: instagram,
       clinicName: instagram,
       objective: prazo,
@@ -522,9 +542,9 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
       nome: name,
       e_mail: email,
       whatsapp: phone,
-      CRM: "",
+      CRM: fullCrm,
       instagram_clinica: instagram,
-      especialidade: "",
+      especialidade: fullCrm,
       faturamento_mensal: faturamento,
       investimento_marketing: investimento,
       objetivo_principal: "",
@@ -868,6 +888,41 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
                 onChange={e => setInstagram(e.target.value)}
                 className={inputCls} 
               />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-[#050705] mb-1">
+                CRM Médico (Número e Estado) *
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <input 
+                    required 
+                    type="text" 
+                    inputMode="numeric"
+                    placeholder="Ex: 123456" 
+                    value={crmNumber}
+                    onChange={e => setCrmNumber(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                    className={inputCls} 
+                  />
+                </div>
+                <div>
+                  <select 
+                    required 
+                    value={crmUf} 
+                    onChange={e => setCrmUf(e.target.value)} 
+                    className={inputCls}
+                  >
+                    <option value="" disabled>UF</option>
+                    {UF_LIST.map(uf => (
+                      <option key={uf} value={uf}>{uf}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <p className="mt-1 text-[10px] text-[#667066] font-medium">
+                Diagnóstico exclusivo para médicos com CRM ativo.
+              </p>
             </div>
 
             <div>
