@@ -91,8 +91,10 @@ function doPost(e) {
       }
 
       var agendamentoInfo = dataHoraReuniao 
-        ? ("Agendado para: " + dataHoraReuniao) 
-        : (data.agendamento_calendly || data.detalhes_agendamento || ("Agendado no Calendly em " + new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })));
+        ? dataHoraReuniao 
+        : ((data.agendamento_calendly && data.agendamento_calendly !== "NÃO AGENDADA" && data.agendamento_calendly !== "NAO AGENDADA") 
+            ? data.agendamento_calendly 
+            : "Agendado no Calendly");
       
       var lastRow = sheet.getLastRow();
       var targetRow = -1;
@@ -131,11 +133,11 @@ function doPost(e) {
           }
         }
 
-        // Busca 4: Fallback na última linha caso tenha sido marcada como "NÃO AGENDADA"
+        // Busca 4: Fallback na última linha caso esteja em branco ou como "NÃO AGENDADA"
         if (targetRow === -1 && values.length > 0) {
           var lastIdx = values.length - 1;
           var lastZ = String(values[lastIdx][25] || "").trim();
-          if (lastZ === "NÃO AGENDADA") {
+          if (lastZ === "NÃO AGENDADA" || lastZ === "") {
             targetRow = lastIdx + 2;
           }
         }
@@ -195,7 +197,28 @@ function doPost(e) {
           dataHoraAgendada = calStartTime;
         }
       }
-      var calDetalhes = "Agendado para: " + (dataHoraAgendada || "Confirmado no Calendly");
+
+      // Se não veio no payload mas temos o URI do evento e o token, busca na API
+      if (!dataHoraAgendada && calPayload.event && CALENDLY_ACCESS_TOKEN) {
+        try {
+          var calHookRes = UrlFetchApp.fetch(calPayload.event, {
+            headers: {
+              "Authorization": "Bearer " + CALENDLY_ACCESS_TOKEN,
+              "Content-Type": "application/json"
+            },
+            muteHttpExceptions: true
+          });
+          var calHookJson = JSON.parse(calHookRes.getContentText());
+          if (calHookJson && calHookJson.resource && calHookJson.resource.start_time) {
+            var dObjHook = new Date(calHookJson.resource.start_time);
+            dataHoraAgendada = Utilities.formatDate(dObjHook, "America/Sao_Paulo", "dd/MM/yyyy 'às' HH:mm");
+          }
+        } catch (calHookErr) {
+          Logger.log("Erro ao buscar evento no webhook do Calendly: " + calHookErr.toString());
+        }
+      }
+
+      var calDetalhes = dataHoraAgendada || "Agendado no Calendly";
       
       var lastR = sheet.getLastRow();
       if (lastR > 1) {
@@ -209,10 +232,11 @@ function doPost(e) {
             }
           }
         }
-        // Fallback: se não localizou por e-mail exato, atualiza a última linha se estiver como "NÃO AGENDADA"
+        // Fallback: se não localizou por e-mail exato, atualiza a última linha se estiver em branco ou como "NÃO AGENDADA"
         if (rowToUp === -1 && vals.length > 0) {
           var lastIdx = vals.length - 1;
-          if (String(vals[lastIdx][25] || "").trim() === "NÃO AGENDADA") {
+          var lastZVal = String(vals[lastIdx][25] || "").trim();
+          if (lastZVal === "NÃO AGENDADA" || lastZVal === "") {
             rowToUp = lastIdx + 2;
           }
         }
@@ -341,8 +365,9 @@ function doPost(e) {
     var capiVendaEnviado = "";
 
     // Informações de Agendamento Calendly (Coluna Z)
-    // Se o lead não marcou reunião, recebe "NÃO AGENDADA" por padrão
-    var agendamentoCalendly = data.agendamento_calendly || data.detalhes_agendamento || "NÃO AGENDADA";
+    // Se o lead não marcou reunião, permanece estritamente em branco ("") conforme solicitado
+    var rawAgendamento = data.agendamento_calendly || data.detalhes_agendamento || "";
+    var agendamentoCalendly = (rawAgendamento === "NÃO AGENDADA" || rawAgendamento === "NAO AGENDADA") ? "" : rawAgendamento;
 
     // Linha a ser adicionada na planilha (Colunas A -> Z, totalizando 26 colunas)
     var row = [

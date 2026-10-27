@@ -335,9 +335,6 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
   const emailRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
 
-  // Controle de estado e envio garantido com temporizador estrito de 90s
-  const timeoutTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const leadSentRef = useRef<boolean>(false);
   const isScheduledRef = useRef<boolean>(false);
   const leadPayloadRef = useRef<any>(null);
 
@@ -358,32 +355,6 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     return formatted || input;
   };
 
-  // Envia as informações do lead para a planilha marcando Coluna Z como "NÃO AGENDADA"
-  // (Coluna R é estritamente ignorada conforme regra)
-  const sendLeadNotScheduled = () => {
-    if (isScheduledRef.current || leadSentRef.current || !leadPayloadRef.current) {
-      return;
-    }
-    leadSentRef.current = true;
-    const finalPayload = {
-      ...leadPayloadRef.current,
-      agendamento_calendly: "NÃO AGENDADA",
-      detalhes_agendamento: "NÃO AGENDADA",
-      agendamento: "", // Coluna R NUNCA modificada
-    };
-
-    const WEBHOOK_URL = import.meta.env.VITE_SHEETS_WEBHOOK_URL || "https://script.google.com/macros/s/AKfycbygkGV6P-Hp90BGHqsLfxF8MMO97EWkUKGEdK0UN1QChG8MU0QP-T68MHq0qz06g2wRtQ/exec";
-
-    fetch(WEBHOOK_URL, {
-      method: "POST",
-      mode: "no-cors",
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8",
-      },
-      body: JSON.stringify(finalPayload),
-    }).catch(err => console.error("Erro ao registrar lead não agendado após 90s:", err));
-  };
-
   // Sincroniza periodicamente com o preenchimento automático nativo de celulares e navegadores
   useEffect(() => {
     const syncAutofill = () => {
@@ -402,32 +373,37 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     return () => clearInterval(interval);
   }, [name, email, phone]);
 
-  // Captura fechamento acidental da aba/navegador para nunca perder o lead
+  // Se o Calendly redirecionar com parâmetros de confirmação (pass event details), captura data e horário
   useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (!isScheduledRef.current && !leadSentRef.current && leadPayloadRef.current) {
-        leadSentRef.current = true;
-        const finalPayload = {
-          ...leadPayloadRef.current,
-          agendamento_calendly: "NÃO AGENDADA",
-          detalhes_agendamento: "NÃO AGENDADA",
-          agendamento: "", // Coluna R NUNCA modificada
-        };
-        const WEBHOOK_URL = import.meta.env.VITE_SHEETS_WEBHOOK_URL || "https://script.google.com/macros/s/AKfycbygkGV6P-Hp90BGHqsLfxF8MMO97EWkUKGEdK0UN1QChG8MU0QP-T68MHq0qz06g2wRtQ/exec";
-        if (navigator.sendBeacon) {
-          const blob = new Blob([JSON.stringify(finalPayload)], { type: "text/plain;charset=utf-8" });
-          navigator.sendBeacon(WEBHOOK_URL, blob);
-        }
-      }
-    };
+    if (typeof window === "undefined") return;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const eventStartTime = urlParams.get("event_start_time");
+      const inviteeEmail = urlParams.get("invitee_email");
+      const inviteeName = urlParams.get("invitee_full_name");
 
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      if (timeoutTimerRef.current) {
-        clearTimeout(timeoutTimerRef.current);
+      if (eventStartTime && (inviteeEmail || inviteeName)) {
+        const d = new Date(eventStartTime);
+        const formatted = d.toLocaleDateString("pt-BR") + " às " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+        const WEBHOOK_URL = import.meta.env.VITE_SHEETS_WEBHOOK_URL || "https://script.google.com/macros/s/AKfycbygkGV6P-Hp90BGHqsLfxF8MMO97EWkUKGEdK0UN1QChG8MU0QP-T68MHq0qz06g2wRtQ/exec";
+        
+        fetch(WEBHOOK_URL, {
+          method: "POST",
+          mode: "no-cors",
+          headers: {
+            "Content-Type": "text/plain;charset=utf-8",
+          },
+          body: JSON.stringify({
+            action: "calendly_scheduled",
+            email: inviteeEmail || "",
+            name: inviteeName || "",
+            agendamento_calendly: formatted,
+          }),
+        }).catch(err => console.error("Erro ao registrar agendamento via parâmetros de URL:", err));
       }
-    };
+    } catch (e) {
+      console.error("Erro ao processar parâmetros da URL:", e);
+    }
   }, []);
 
   useEffect(() => {
@@ -442,22 +418,8 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
       if (!data || typeof data !== "object") return;
       const eventName = data.event || "";
 
-      // 1. Quando o lead seleciona a data e horário no calendário do Calendly:
-      if (eventName === "calendly.date_and_time_selected") {
-        // Cancela o timeout estrito de 90s para que o lead tenha o tempo necessário para preencher e confirmar
-        if (timeoutTimerRef.current) {
-          clearTimeout(timeoutTimerRef.current);
-          timeoutTimerRef.current = null;
-        }
-      }
-
-      // 2. Quando o agendamento é concluído com sucesso:
+      // Quando o agendamento é concluído com sucesso:
       if (eventName === "calendly.event_scheduled") {
-        if (timeoutTimerRef.current) {
-          clearTimeout(timeoutTimerRef.current);
-          timeoutTimerRef.current = null;
-        }
-
         isScheduledRef.current = true;
         setIsScheduled(true);
 
@@ -517,49 +479,23 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
           const scheduledTimestamp = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
           const agendamentoInfo = `Agendado no Calendly em ${scheduledTimestamp}`;
 
-          if (leadSentRef.current) {
-            // Se o lead já tiver sido enviado (ex: pelo temporizador de 90s como "NÃO AGENDADA"),
-            // atualiza a Coluna Z da linha existente sem duplicar linha e sem tocar na Coluna R
-            fetch(WEBHOOK_URL, {
-              method: "POST",
-              mode: "no-cors",
-              headers: {
-                "Content-Type": "text/plain;charset=utf-8",
-              },
-              body: JSON.stringify({
-                action: "calendly_scheduled",
-                name: currentName,
-                email: currentEmail,
-                phone: currentPhone,
-                external_id: extId,
-                agendamento: "", // Coluna R NUNCA modificada
-                agendamento_calendly: agendamentoInfo,
-                calendly_event_uri: eventUri,
-              }),
-            }).catch(err => console.error("Erro ao atualizar agendamento na planilha:", err));
-          } else {
-            // Agendamento realizado dentro do prazo de 90s
-            leadSentRef.current = true;
-            const fullPayload = {
-              ...(leadPayloadRef.current || {}),
+          fetch(WEBHOOK_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: {
+              "Content-Type": "text/plain;charset=utf-8",
+            },
+            body: JSON.stringify({
+              action: "calendly_scheduled",
               name: currentName,
               email: currentEmail,
               phone: currentPhone,
-              agendamento_calendly: agendamentoInfo,
-              detalhes_agendamento: agendamentoInfo,
-              calendly_event_uri: eventUri,
+              external_id: extId,
               agendamento: "", // Coluna R NUNCA modificada
-            };
-
-            fetch(WEBHOOK_URL, {
-              method: "POST",
-              mode: "no-cors",
-              headers: {
-                "Content-Type": "text/plain;charset=utf-8",
-              },
-              body: JSON.stringify(fullPayload),
-            }).catch(err => console.error("Erro ao registrar agendamento na planilha:", err));
-          }
+              agendamento_calendly: agendamentoInfo,
+              calendly_event_uri: eventUri,
+            }),
+          }).catch(err => console.error("Erro ao atualizar agendamento na planilha:", err));
         } catch (err) {
           console.error("Erro ao registrar agendamento na planilha:", err);
         }
@@ -598,20 +534,9 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
   };
 
   const handleCloseModal = () => {
-    if (timeoutTimerRef.current) {
-      clearTimeout(timeoutTimerRef.current);
-      timeoutTimerRef.current = null;
-    }
-
-    // Se o usuário fechar o modal antes de agendar e o lead ainda não tiver sido enviado
-    if (!isScheduledRef.current && !leadSentRef.current && leadPayloadRef.current) {
-      sendLeadNotScheduled();
-    }
-
     setIsSubmitted(false);
     setIsScheduled(false);
     isScheduledRef.current = false;
-    leadSentRef.current = false;
     leadPayloadRef.current = null;
     setSubmissionExternalId("");
     setStepError(null);
@@ -781,8 +706,8 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
 
       form_used: formId,
       agendamento: "", // Coluna R (18) NUNCA é preenchida pelo script - estritamente manual para SDR
-      agendamento_calendly: "NÃO AGENDADA",
-      detalhes_agendamento: "NÃO AGENDADA",
+      agendamento_calendly: "", // Em branco conforme solicitado quando não agendado
+      detalhes_agendamento: "",
 
       // Parâmetros Meta Conversions API (CAPI)
       fbc: fbcCookie,
@@ -825,18 +750,19 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     };
 
     try {
-      // Salva dados do lead na ref para envio após agendamento Calendly ou após 90 segundos
       leadPayloadRef.current = payload;
-      leadSentRef.current = false;
       isScheduledRef.current = false;
 
-      // Inicia temporizador estrito de 90 segundos
-      if (timeoutTimerRef.current) {
-        clearTimeout(timeoutTimerRef.current);
-      }
-      timeoutTimerRef.current = setTimeout(() => {
-        sendLeadNotScheduled();
-      }, 90000); // 90 segundos
+      // Envia os dados do lead imediatamente para a planilha e Supabase
+      const WEBHOOK_URL = import.meta.env.VITE_SHEETS_WEBHOOK_URL || "https://script.google.com/macros/s/AKfycbygkGV6P-Hp90BGHqsLfxF8MMO97EWkUKGEdK0UN1QChG8MU0QP-T68MHq0qz06g2wRtQ/exec";
+      fetch(WEBHOOK_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8",
+        },
+        body: JSON.stringify(payload),
+      }).catch(err => console.error("Erro ao enviar lead inicial:", err));
 
       if (typeof window !== "undefined") {
         const win = window as any;
