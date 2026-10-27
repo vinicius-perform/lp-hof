@@ -542,27 +542,6 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     }
   };
 
-  const getGoogleCalendarUrl = () => {
-    if (!selectedDate || !selectedTime) return "#";
-    try {
-      const [year, month, day] = selectedDate.split("-");
-      const [hour, minute] = selectedTime.split(":");
-      const startDate = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
-      const endDate = new Date(startDate.getTime() + 45 * 60 * 1000);
-
-      const formatGCal = (d: Date) => d.toISOString().replace(/-|:|\.\d\d\d/g, "");
-
-      const title = encodeURIComponent("Diagnóstico Estratégico FA — Reunião Online");
-      const details = encodeURIComponent("Reunião estratégica individual para diagnóstico e aceleração da clínica.\n\nLink do Google Meet enviado via WhatsApp e E-mail.");
-      const location = encodeURIComponent("Google Meet (link enviado no WhatsApp)");
-      const dates = `${formatGCal(startDate)}/${formatGCal(endDate)}`;
-
-      return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&location=${location}`;
-    } catch {
-      return "#";
-    }
-  };
-
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let input = e.target.value.replace(/\D/g, "");
     if (input.length > 11) input = input.substring(0, 11);
@@ -930,24 +909,14 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
                   </div>
                 </div>
 
-                {/* Botões de Ação */}
-                <div className="space-y-2 pt-2 max-w-md mx-auto">
-                  <a
-                    href={getGoogleCalendarUrl()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#8CFF00] px-6 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all hover:bg-[#7AE000] cursor-pointer shadow-[0_0_20px_rgba(140,255,0,0.3)] hover:scale-[1.01]"
-                  >
-                    <Calendar className="h-4 w-4 text-[#050705]" />
-                    <span>Adicionar ao Google Agenda</span>
-                  </a>
-
+                {/* Botão de Ação */}
+                <div className="pt-2 max-w-md mx-auto">
                   <button
                     type="button"
                     onClick={handleCloseModal}
-                    className="w-full inline-flex h-11 items-center justify-center rounded-xl border border-[#252A25] bg-transparent text-xs font-bold text-[#F4F6F1]/80 hover:text-[#FFFFFF] hover:bg-[#1A1F1A] transition-colors cursor-pointer"
+                    className="w-full inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#8CFF00] px-6 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all hover:bg-[#7AE000] cursor-pointer shadow-[0_0_20px_rgba(140,255,0,0.3)] hover:scale-[1.01]"
                   >
-                    Concluir e Fechar
+                    <span>Concluir</span>
                   </button>
                 </div>
               </div>
