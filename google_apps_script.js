@@ -1,7 +1,7 @@
 /**
  * Google Apps Script - Integração Diagnóstico FA (Com suporte UTF-8, Meta Ads CAPI, Triggers, Distribuição SDR, Supabase e Identificação de LP)
  * 
- * Mapeamento das colunas A até Y (25 colunas):
+ * Mapeamento das colunas A até Z (26 colunas):
  * A: Data/Hora
  * B: LP (Identificação da LP: ex "LP1", "LP FA2")
  * C: Nome
@@ -27,10 +27,15 @@
  * W: EXTERNAL_ID (ID Único do Lead)
  * X: CAPI_AGENDAMENTO_ENVIADO (Status/Timestamp do Envio)
  * Y: CAPI_VENDA_ENVIADO (Status/Timestamp do Envio)
+ * Z: AGENDAMENTO CALENDLY (Data/Horário do Agendamento pelo Lead)
  */
 
 var META_PIXEL_ID = "1049112404466926";
 var META_ACCESS_TOKEN = "EAA8ZCmFdkBigBSOLMe5XkD3TdDb6BYAGzAtFZAd05gvDPZCrSI9S08YmMZCrUuWLUoordOaNGfHR8ZAdoAMrb8uZBkd26IABzDeULg0vwyhIH0MocX8RL0Tx33YHEC9QVqmcoJrdgSfKey1Vx1KdsGsP4cmq203hZCJQRLM26FixkJNFaJxevIjpIQ3ro536DXdaQZDZD";
+
+// Token de Acesso Pessoal da API do Calendly (Opcional, permite obter a data + hora exatas da reunião escolhida pelo lead)
+// Gerado gratuitamente no Calendly: Integrations & apps -> API & Webhooks -> Generate new token
+var CALENDLY_ACCESS_TOKEN = PropertiesService.getScriptProperties().getProperty("CALENDLY_ACCESS_TOKEN") || "";
 
 function doPost(e) {
   try {
@@ -47,6 +52,179 @@ function doPost(e) {
     }
     
     var data = JSON.parse(jsonString);
+
+    // Garante que a Coluna Z (26) tenha o cabeçalho correto se a planilha já possuir cabeçalhos
+    if (sheet.getLastRow() >= 1) {
+      var headerZ = sheet.getRange(1, 26).getValue();
+      if (!headerZ) {
+        sheet.getRange(1, 26).setValue("AGENDAMENTO CALENDLY");
+      }
+    }
+
+    // 1. ATUALIZAÇÃO VIA FRONTEND (Quando o lead conclui o agendamento no Calendly)
+    if (data.action === "calendly_scheduled" || data.action === "update_agendamento") {
+      var searchExternalId = String(data.external_id || data.EXTERNAL_ID || "").trim();
+      var searchEmail = String(data.email || data.e_mail || "").trim().toLowerCase();
+      var searchPhone = String(data.phone || data.whatsapp || "").replace(/\D/g, "");
+      var eventUri = String(data.calendly_event_uri || data.event_uri || "").trim();
+      
+      var dataHoraReuniao = "";
+
+      // Se temos o token e a URI do evento, consulta a API do Calendly para extrair data + hora da reunião
+      if (eventUri && CALENDLY_ACCESS_TOKEN) {
+        try {
+          var calRes = UrlFetchApp.fetch(eventUri, {
+            headers: {
+              "Authorization": "Bearer " + CALENDLY_ACCESS_TOKEN,
+              "Content-Type": "application/json"
+            },
+            muteHttpExceptions: true
+          });
+          var calJson = JSON.parse(calRes.getContentText());
+          if (calJson && calJson.resource && calJson.resource.start_time) {
+            var sDate = new Date(calJson.resource.start_time);
+            dataHoraReuniao = Utilities.formatDate(sDate, "America/Sao_Paulo", "dd/MM/yyyy 'às' HH:mm");
+          }
+        } catch (calErr) {
+          Logger.log("Erro ao buscar detalhes no Calendly API: " + calErr.toString());
+        }
+      }
+
+      var agendamentoInfo = dataHoraReuniao 
+        ? ("Agendado para: " + dataHoraReuniao) 
+        : (data.agendamento_calendly || data.detalhes_agendamento || ("Agendado no Calendly em " + new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })));
+      
+      var lastRow = sheet.getLastRow();
+      var targetRow = -1;
+      
+      if (lastRow > 1) {
+        var values = sheet.getRange(2, 1, lastRow - 1, 26).getValues();
+        
+        // Busca 1: por external_id (Coluna W / índice 22)
+        if (searchExternalId) {
+          for (var i = values.length - 1; i >= 0; i--) {
+            if (String(values[i][22] || "").trim() === searchExternalId) {
+              targetRow = i + 2;
+              break;
+            }
+          }
+        }
+        
+        // Busca 2: por e-mail (Coluna E / índice 4)
+        if (targetRow === -1 && searchEmail) {
+          for (var j = values.length - 1; j >= 0; j--) {
+            if (String(values[j][4] || "").trim().toLowerCase() === searchEmail) {
+              targetRow = j + 2;
+              break;
+            }
+          }
+        }
+        
+        // Busca 3: por telefone (Coluna D / índice 3)
+        if (targetRow === -1 && searchPhone) {
+          for (var k = values.length - 1; k >= 0; k--) {
+            var rowPhone = String(values[k][3] || "").replace(/\D/g, "");
+            if (rowPhone && (rowPhone === searchPhone || rowPhone.indexOf(searchPhone) !== -1 || searchPhone.indexOf(rowPhone) !== -1)) {
+              targetRow = k + 2;
+              break;
+            }
+          }
+        }
+
+        // Busca 4: Fallback na última linha caso tenha sido marcada como "NÃO AGENDADA"
+        if (targetRow === -1 && values.length > 0) {
+          var lastIdx = values.length - 1;
+          var lastZ = String(values[lastIdx][25] || "").trim();
+          if (lastZ === "NÃO AGENDADA") {
+            targetRow = lastIdx + 2;
+          }
+        }
+      }
+      
+      if (targetRow !== -1) {
+        // NUNCA MEXER NA COLUNA R (18) - Reservada estritamente para preenchimento manual da equipe/SDR
+        sheet.getRange(targetRow, 26).setValue(agendamentoInfo); // Coluna Z (AGENDAMENTO CALENDLY)
+        
+        // Envio automático para Meta CAPI (Schedule) se ainda não foi enviado
+        var currentCapiStatus = String(sheet.getRange(targetRow, 24).getValue() || "");
+        if (!currentCapiStatus || currentCapiStatus.indexOf("(Enviado)") === -1) {
+          var leadVals = sheet.getRange(targetRow, 1, 1, 26).getValues()[0];
+          var leadToCapi = {
+            name: leadVals[2],
+            phone: leadVals[3],
+            email: leadVals[4],
+            fbc: leadVals[20],
+            fbp: leadVals[21],
+            externalId: leadVals[22]
+          };
+          var resSched = sendMetaCapiEvent("Schedule", leadToCapi, null);
+          if (resSched && !resSched.error && (!resSched.events_received || resSched.events_received > 0)) {
+            var nowCapi = Utilities.formatDate(new Date(), "America/Sao_Paulo", "dd/MM/yyyy HH:mm:ss");
+            sheet.getRange(targetRow, 24).setValue(nowCapi + " (Enviado)");
+          }
+        }
+        
+        // Atualiza Supabase
+        enviarParaSupabase({
+          email: searchEmail,
+          telefone: searchPhone,
+          agendamento_calendly: agendamentoInfo
+        });
+
+        return ContentService
+          .createTextOutput(JSON.stringify({ result: "success", updated_row: targetRow, agendamento_calendly: agendamentoInfo }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      
+      return ContentService
+        .createTextOutput(JSON.stringify({ result: "not_found", message: "Lead não localizado para atualizar" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 2. ATUALIZAÇÃO VIA WEBHOOK NATIVO DO CALENDLY ("invitee.created")
+    if (data.event === "invitee.created" && data.payload) {
+      var calPayload = data.payload;
+      var calEmail = String(calPayload.email || "").trim().toLowerCase();
+      var calStartTime = calPayload.scheduled_event ? calPayload.scheduled_event.start_time : "";
+      var dataHoraAgendada = "";
+      if (calStartTime) {
+        try {
+          var dObj = new Date(calStartTime);
+          dataHoraAgendada = Utilities.formatDate(dObj, "America/Sao_Paulo", "dd/MM/yyyy 'às' HH:mm");
+        } catch(e) {
+          dataHoraAgendada = calStartTime;
+        }
+      }
+      var calDetalhes = "Agendado para: " + (dataHoraAgendada || "Confirmado no Calendly");
+      
+      var lastR = sheet.getLastRow();
+      if (lastR > 1) {
+        var vals = sheet.getRange(2, 1, lastR - 1, 26).getValues();
+        var rowToUp = -1;
+        if (calEmail) {
+          for (var m = vals.length - 1; m >= 0; m--) {
+            if (String(vals[m][4] || "").trim().toLowerCase() === calEmail) {
+              rowToUp = m + 2;
+              break;
+            }
+          }
+        }
+        // Fallback: se não localizou por e-mail exato, atualiza a última linha se estiver como "NÃO AGENDADA"
+        if (rowToUp === -1 && vals.length > 0) {
+          var lastIdx = vals.length - 1;
+          if (String(vals[lastIdx][25] || "").trim() === "NÃO AGENDADA") {
+            rowToUp = lastIdx + 2;
+          }
+        }
+        if (rowToUp !== -1) {
+          // NUNCA MEXER NA COLUNA R (18)
+          sheet.getRange(rowToUp, 26).setValue(calDetalhes);
+        }
+      }
+      return ContentService
+        .createTextOutput(JSON.stringify({ result: "success", calendly_webhook: true }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
 
     // Mapeamento dos campos recebidos
     var dataHora = data.timestamp || data.data_horario || new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
@@ -148,7 +326,8 @@ function doPost(e) {
     }
 
     // Campos de Operação Comercial
-    var agendamento = data.agendamento || "";
+    // Coluna R (18) NUNCA é preenchida pelo script - estritamente manual para SDR
+    var agendamento = "";
     var venda = data.venda || "";
     var valorConversao = data.valor_conversao || "";
 
@@ -161,7 +340,11 @@ function doPost(e) {
     var capiAgendamentoEnviado = "";
     var capiVendaEnviado = "";
 
-    // Linha a ser adicionada na planilha (Colunas A -> Y, totalizando 25 colunas)
+    // Informações de Agendamento Calendly (Coluna Z)
+    // Se o lead não marcou reunião, recebe "NÃO AGENDADA" por padrão
+    var agendamentoCalendly = data.agendamento_calendly || data.detalhes_agendamento || "NÃO AGENDADA";
+
+    // Linha a ser adicionada na planilha (Colunas A -> Z, totalizando 26 colunas)
     var row = [
       dataHora,               // Coluna A
       identificacaoLP,        // Coluna B (LP)
@@ -187,7 +370,8 @@ function doPost(e) {
       fbp,                    // Coluna V
       externalId,             // Coluna W
       capiAgendamentoEnviado, // Coluna X
-      capiVendaEnviado        // Coluna Y
+      capiVendaEnviado,       // Coluna Y
+      agendamentoCalendly     // Coluna Z (AGENDAMENTO CALENDLY)
     ];
 
     sheet.appendRow(row);
@@ -213,7 +397,8 @@ function doPost(e) {
       sdr: sdrAtribuido,
       agendamento: agendamento,
       venda: venda,
-      valor_conversao: valorConversao
+      valor_conversao: valorConversao,
+      agendamento_calendly: agendamentoCalendly
     };
     enviarParaSupabase(leadSupabase);
 
@@ -398,7 +583,7 @@ function onEditTrigger(e) {
   // Agora Coluna R (18) é AGENDAMENTO e Coluna S (19) é VENDA
   if (col !== 18 && col !== 19) return;
   
-  var rowValues = sheet.getRange(row, 1, 1, 25).getValues()[0];
+  var rowValues = sheet.getRange(row, 1, 1, 26).getValues()[0];
   
   var lp = rowValues[1];                 // Coluna B (2)
   var nome = rowValues[2];               // Coluna C (3)
@@ -490,7 +675,7 @@ function processAllPendingCapiEvents() {
     return;
   }
   
-  var dataRange = sheet.getRange(2, 1, lastRow - 1, 25).getValues();
+  var dataRange = sheet.getRange(2, 1, lastRow - 1, 26).getValues();
   var sentCount = 0;
   var errorCount = 0;
   var nowStr = Utilities.formatDate(new Date(), "America/Sao_Paulo", "dd/MM/yyyy HH:mm:ss");
@@ -598,7 +783,7 @@ function sincronizarHistoricoSupabase() {
     return;
   }
   
-  var dataRange = sheet.getRange(2, 1, lastRow - 1, 25).getValues();
+  var dataRange = sheet.getRange(2, 1, lastRow - 1, 26).getValues();
   var successCount = 0;
   var errorCount = 0;
   
@@ -630,7 +815,8 @@ function sincronizarHistoricoSupabase() {
       sdr: rowValues[16] || "",
       agendamento: rowValues[17] || "Não",
       venda: rowValues[18] || "Não",
-      valor_conversao: parseCurrencyValue(rowValues[19])
+      valor_conversao: parseCurrencyValue(rowValues[19]),
+      agendamento_calendly: rowValues[25] || ""
     };
     
     try {

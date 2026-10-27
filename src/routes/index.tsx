@@ -15,10 +15,9 @@ import {
   Lock, 
   Clock,
   CheckCircle2,
-  Zap,
-  ShieldCheck,
-  AlertTriangle,
-  Sparkles
+  Calendar,
+  ExternalLink,
+  AlertCircle
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -120,14 +119,18 @@ const CASE_STUDIES: CaseStudy[] = [
 
 // Tracking Helper
 const trackCustomEvent = (eventName: string, params: Record<string, any> = {}) => {
-  if (typeof window !== "undefined") {
-    const win = window as any;
-    if (typeof win.fbq === "function") {
-      win.fbq("trackCustom", eventName, params);
+  try {
+    if (typeof window !== "undefined") {
+      const win = window as any;
+      if (typeof win.fbq === "function") {
+        win.fbq("trackCustom", eventName, params);
+      }
+      if (win.dataLayer && Array.isArray(win.dataLayer)) {
+        win.dataLayer.push({ event: eventName, ...params });
+      }
     }
-    if (win.dataLayer && Array.isArray(win.dataLayer)) {
-      win.dataLayer.push({ event: eventName, ...params });
-    }
+  } catch (err) {
+    console.warn("Tracking warning:", err);
   }
 };
 
@@ -324,92 +327,22 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
   const [instagram, setInstagram] = useState("");
   const [faturamento, setFaturamento] = useState("");
   const [investimento, setInvestimento] = useState("");
-  const [prazo, setPrazo] = useState("");
-  const [fakeProgress, setFakeProgress] = useState(25);
+  const [isScheduled, setIsScheduled] = useState(false);
+  const [submissionExternalId, setSubmissionExternalId] = useState("");
+  const [stepError, setStepError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isSubmitted) {
-      setFakeProgress(25);
-      return;
-    }
-    const t1 = setTimeout(() => setFakeProgress(52), 700);
-    const t2 = setTimeout(() => setFakeProgress(78), 1800);
-    const t3 = setTimeout(() => setFakeProgress(94), 3000);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
-  }, [isSubmitted]);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
 
-  const handleGoToVipCheckout = () => {
-    trackCustomEvent("VIPFastTrackCheckoutClick", {
-      value: 19.90,
-      form_id: formId,
-      lead_name: name,
-      lead_phone: phone,
-      lead_email: email
-    });
-    if (typeof window !== "undefined") {
-      const win = window as any;
-      if (typeof win.fbq === "function") {
-        win.fbq("track", "InitiateCheckout", {
-          content_name: "Diagnostico Estrategico VIP - Furar Fila",
-          currency: "BRL",
-          value: 19.90
-        });
-      }
-    }
-    const kiwiBase = "https://pay.kiwify.com.br/LjM9uMe";
-    const params = new URLSearchParams();
-    if (name) params.append("name", name);
-    if (email) params.append("email", email);
-    if (phone) {
-      const cleanPhone = phone.replace(/\D/g, "");
-      params.append("phone", cleanPhone);
-    }
-    if (utms?.utm_source) params.append("utm_source", utms.utm_source);
-    if (utms?.utm_medium) params.append("utm_medium", utms.utm_medium);
-    if (utms?.utm_campaign) params.append("utm_campaign", utms.utm_campaign);
-    if (utms?.utm_content) params.append("utm_content", utms.utm_content);
-    if (utms?.utm_term) params.append("utm_term", utms.utm_term);
-    if (utms?.fbclid) params.append("fbclid", utms.fbclid);
-    const fullUrl = `${kiwiBase}?${params.toString()}`;
-    const popupWidth = 520;
-    const popupHeight = 800;
-    const left = typeof window !== "undefined" ? Math.max(0, (window.screen.width - popupWidth) / 2) : 0;
-    const top = typeof window !== "undefined" ? Math.max(0, (window.screen.height - popupHeight) / 2) : 0;
-    
-    // Abre como uma janela pop-up dedicada sobre a página atual
-    const checkoutWindow = window.open(
-      fullUrl,
-      "kiwify_checkout",
-      `width=${popupWidth},height=${popupHeight},top=${top},left=${left},scrollbars=yes,resizable=yes`
-    );
-    
-    // Fallback: se o navegador bloquear janela popup, abre em nova aba para não perder a página original
-    if (!checkoutWindow || checkoutWindow.closed || typeof checkoutWindow.closed === "undefined") {
-      window.open(fullUrl, "_blank");
-    }
-  };
+  // Controle de estado e envio garantido com temporizador estrito de 90s
+  const timeoutTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const leadSentRef = useRef<boolean>(false);
+  const isScheduledRef = useRef<boolean>(false);
+  const leadPayloadRef = useRef<any>(null);
 
-  const handleCloseModal = () => {
-    setIsSubmitted(false);
-    setStep(1);
-    setName("");
-    setEmail("");
-    setPhone("");
-    setCrmNumber("");
-    setCrmUf("");
-    setInstagram("");
-    setFaturamento("");
-    setInvestimento("");
-    setPrazo("");
-    setFakeProgress(25);
-  };
-
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let input = e.target.value.replace(/\D/g, "");
+  const formatPhoneNumber = (val: string) => {
+    let input = val.replace(/\D/g, "");
     if (input.length > 11) input = input.substring(0, 11);
     
     let formatted = "";
@@ -422,53 +355,345 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     if (input.length > 7) {
       formatted += `-${input.substring(7, 11)}`;
     }
-    setPhone(formatted || input);
+    return formatted || input;
+  };
+
+  // Envia as informações do lead para a planilha marcando Coluna Z como "NÃO AGENDADA"
+  // (Coluna R é estritamente ignorada conforme regra)
+  const sendLeadNotScheduled = () => {
+    if (isScheduledRef.current || leadSentRef.current || !leadPayloadRef.current) {
+      return;
+    }
+    leadSentRef.current = true;
+    const finalPayload = {
+      ...leadPayloadRef.current,
+      agendamento_calendly: "NÃO AGENDADA",
+      detalhes_agendamento: "NÃO AGENDADA",
+      agendamento: "", // Coluna R NUNCA modificada
+    };
+
+    const WEBHOOK_URL = import.meta.env.VITE_SHEETS_WEBHOOK_URL || "https://script.google.com/macros/s/AKfycbygkGV6P-Hp90BGHqsLfxF8MMO97EWkUKGEdK0UN1QChG8MU0QP-T68MHq0qz06g2wRtQ/exec";
+
+    fetch(WEBHOOK_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      },
+      body: JSON.stringify(finalPayload),
+    }).catch(err => console.error("Erro ao registrar lead não agendado após 90s:", err));
+  };
+
+  // Sincroniza periodicamente com o preenchimento automático nativo de celulares e navegadores
+  useEffect(() => {
+    const syncAutofill = () => {
+      if (nameRef.current?.value && nameRef.current.value !== name) {
+        setName(nameRef.current.value);
+      }
+      if (emailRef.current?.value && emailRef.current.value !== email) {
+        setEmail(emailRef.current.value);
+      }
+      if (phoneRef.current?.value && phoneRef.current.value !== phone) {
+        setPhone(formatPhoneNumber(phoneRef.current.value));
+      }
+    };
+
+    const interval = setInterval(syncAutofill, 300);
+    return () => clearInterval(interval);
+  }, [name, email, phone]);
+
+  // Captura fechamento acidental da aba/navegador para nunca perder o lead
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (!isScheduledRef.current && !leadSentRef.current && leadPayloadRef.current) {
+        leadSentRef.current = true;
+        const finalPayload = {
+          ...leadPayloadRef.current,
+          agendamento_calendly: "NÃO AGENDADA",
+          detalhes_agendamento: "NÃO AGENDADA",
+          agendamento: "", // Coluna R NUNCA modificada
+        };
+        const WEBHOOK_URL = import.meta.env.VITE_SHEETS_WEBHOOK_URL || "https://script.google.com/macros/s/AKfycbygkGV6P-Hp90BGHqsLfxF8MMO97EWkUKGEdK0UN1QChG8MU0QP-T68MHq0qz06g2wRtQ/exec";
+        if (navigator.sendBeacon) {
+          const blob = new Blob([JSON.stringify(finalPayload)], { type: "text/plain;charset=utf-8" });
+          navigator.sendBeacon(WEBHOOK_URL, blob);
+        }
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      if (timeoutTimerRef.current) {
+        clearTimeout(timeoutTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleCalendlyMessage = (e: MessageEvent) => {
+      let data = e.data;
+      if (typeof data === "string") {
+        try {
+          data = JSON.parse(data);
+        } catch {}
+      }
+
+      if (!data || typeof data !== "object") return;
+      const eventName = data.event || "";
+
+      // 1. Quando o lead seleciona a data e horário no calendário do Calendly:
+      if (eventName === "calendly.date_and_time_selected") {
+        // Cancela o timeout estrito de 90s para que o lead tenha o tempo necessário para preencher e confirmar
+        if (timeoutTimerRef.current) {
+          clearTimeout(timeoutTimerRef.current);
+          timeoutTimerRef.current = null;
+        }
+      }
+
+      // 2. Quando o agendamento é concluído com sucesso:
+      if (eventName === "calendly.event_scheduled") {
+        if (timeoutTimerRef.current) {
+          clearTimeout(timeoutTimerRef.current);
+          timeoutTimerRef.current = null;
+        }
+
+        isScheduledRef.current = true;
+        setIsScheduled(true);
+
+        const currentName = name || leadPayloadRef.current?.name || "";
+        const currentEmail = email || leadPayloadRef.current?.email || "";
+        const currentPhone = phone || leadPayloadRef.current?.phone || "";
+        const extId = submissionExternalId || leadPayloadRef.current?.external_id || "";
+        const eventUri = data?.payload?.event?.uri || "";
+
+        // Dispara o evento para o Meta Pixel chamado "RA Calendly"
+        trackCustomEvent("RA Calendly", {
+          lead_name: currentName,
+          lead_email: currentEmail,
+          lead_phone: currentPhone,
+          form_id: formId,
+        });
+
+        if (typeof window !== "undefined") {
+          const win = window as any;
+          const eventIdObj = extId ? { eventID: `${extId}_ra_calendly` } : undefined;
+          if (typeof win.fbq === "function") {
+            win.fbq(
+              "trackCustom",
+              "RA Calendly",
+              {
+                content_name: "Diagnostico Estrategico FA Agendado",
+                lead_name: currentName,
+                lead_email: currentEmail,
+                lead_phone: currentPhone,
+                form_id: formId,
+              },
+              eventIdObj
+            );
+            win.fbq(
+              "track",
+              "Schedule",
+              {
+                content_name: "Diagnostico Estrategico FA Agendado",
+              },
+              eventIdObj
+            );
+          }
+          if (win.dataLayer && Array.isArray(win.dataLayer)) {
+            win.dataLayer.push({
+              event: "RA Calendly",
+              lead_name: currentName,
+              lead_email: currentEmail,
+              lead_phone: currentPhone,
+              form_id: formId,
+            });
+          }
+        }
+
+        // Registra o agendamento do lead na planilha Google (Coluna Z)
+        try {
+          const WEBHOOK_URL = import.meta.env.VITE_SHEETS_WEBHOOK_URL || "https://script.google.com/macros/s/AKfycbygkGV6P-Hp90BGHqsLfxF8MMO97EWkUKGEdK0UN1QChG8MU0QP-T68MHq0qz06g2wRtQ/exec";
+          const scheduledTimestamp = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+          const agendamentoInfo = `Agendado no Calendly em ${scheduledTimestamp}`;
+
+          if (leadSentRef.current) {
+            // Se o lead já tiver sido enviado (ex: pelo temporizador de 90s como "NÃO AGENDADA"),
+            // atualiza a Coluna Z da linha existente sem duplicar linha e sem tocar na Coluna R
+            fetch(WEBHOOK_URL, {
+              method: "POST",
+              mode: "no-cors",
+              headers: {
+                "Content-Type": "text/plain;charset=utf-8",
+              },
+              body: JSON.stringify({
+                action: "calendly_scheduled",
+                name: currentName,
+                email: currentEmail,
+                phone: currentPhone,
+                external_id: extId,
+                agendamento: "", // Coluna R NUNCA modificada
+                agendamento_calendly: agendamentoInfo,
+                calendly_event_uri: eventUri,
+              }),
+            }).catch(err => console.error("Erro ao atualizar agendamento na planilha:", err));
+          } else {
+            // Agendamento realizado dentro do prazo de 90s
+            leadSentRef.current = true;
+            const fullPayload = {
+              ...(leadPayloadRef.current || {}),
+              name: currentName,
+              email: currentEmail,
+              phone: currentPhone,
+              agendamento_calendly: agendamentoInfo,
+              detalhes_agendamento: agendamentoInfo,
+              calendly_event_uri: eventUri,
+              agendamento: "", // Coluna R NUNCA modificada
+            };
+
+            fetch(WEBHOOK_URL, {
+              method: "POST",
+              mode: "no-cors",
+              headers: {
+                "Content-Type": "text/plain;charset=utf-8",
+              },
+              body: JSON.stringify(fullPayload),
+            }).catch(err => console.error("Erro ao registrar agendamento na planilha:", err));
+          }
+        } catch (err) {
+          console.error("Erro ao registrar agendamento na planilha:", err);
+        }
+      }
+    };
+
+    window.addEventListener("message", handleCalendlyMessage);
+    return () => window.removeEventListener("message", handleCalendlyMessage);
+  }, [name, email, phone, formId, submissionExternalId]);
+
+  const getCalendlyUrl = () => {
+    const baseUrl = import.meta.env.VITE_CALENDLY_URL || "https://calendly.com/fazendoacontecer-clientes/diagnostico-estrategico-fa";
+    try {
+      const url = new URL(baseUrl);
+      if (name) url.searchParams.set("name", name);
+      if (email) url.searchParams.set("email", email);
+      if (phone) url.searchParams.set("a1", phone);
+
+      // Estilo integrado com tema escuro e verde da página
+      url.searchParams.set("background_color", "0a0d0a");
+      url.searchParams.set("text_color", "ffffff");
+      url.searchParams.set("primary_color", "8cff00");
+      url.searchParams.set("hide_landing_page_details", "1");
+      url.searchParams.set("hide_gdpr_banner", "1");
+
+      if (utms?.utm_source) url.searchParams.set("utm_source", utms.utm_source);
+      if (utms?.utm_medium) url.searchParams.set("utm_medium", utms.utm_medium);
+      if (utms?.utm_campaign) url.searchParams.set("utm_campaign", utms.utm_campaign);
+      if (utms?.utm_content) url.searchParams.set("utm_content", utms.utm_content);
+      if (utms?.utm_term) url.searchParams.set("utm_term", utms.utm_term);
+
+      return url.toString();
+    } catch {
+      return baseUrl;
+    }
+  };
+
+  const handleCloseModal = () => {
+    if (timeoutTimerRef.current) {
+      clearTimeout(timeoutTimerRef.current);
+      timeoutTimerRef.current = null;
+    }
+
+    // Se o usuário fechar o modal antes de agendar e o lead ainda não tiver sido enviado
+    if (!isScheduledRef.current && !leadSentRef.current && leadPayloadRef.current) {
+      sendLeadNotScheduled();
+    }
+
+    setIsSubmitted(false);
+    setIsScheduled(false);
+    isScheduledRef.current = false;
+    leadSentRef.current = false;
+    leadPayloadRef.current = null;
+    setSubmissionExternalId("");
+    setStepError(null);
+    setStep(1);
+    setName("");
+    setEmail("");
+    setPhone("");
+    setCrmNumber("");
+    setCrmUf("");
+    setInstagram("");
+    setFaturamento("");
+    setInvestimento("");
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPhone(formatPhoneNumber(e.target.value));
+    if (stepError) setStepError(null);
   };
 
   const handleNextStep = () => {
-    if (!name || name.trim().length < 3) {
-      alert("Por favor, informe seu nome completo.");
+    setStepError(null);
+    const validName = (name || nameRef.current?.value || "").trim();
+    const validEmail = (email || emailRef.current?.value || "").trim();
+    const validPhone = (phone || phoneRef.current?.value || "").trim();
+
+    if (!validName || validName.length < 3) {
+      setStepError("Por favor, informe seu nome completo (mínimo 3 caracteres).");
+      nameRef.current?.focus();
       return;
     }
-    if (!email || !email.includes("@") || !email.includes(".")) {
-      alert("Por favor, informe um e-mail válido.");
+    if (!validEmail || !validEmail.includes("@") || !validEmail.includes(".")) {
+      setStepError("Por favor, informe um e-mail válido.");
+      emailRef.current?.focus();
       return;
     }
-    if (!phone || phone.replace(/\D/g, "").length < 10) {
-      alert("Por favor, informe um WhatsApp válido com DDD.");
+    const cleanDigits = validPhone.replace(/\D/g, "");
+    if (!validPhone || cleanDigits.length < 10) {
+      setStepError("Por favor, informe um WhatsApp válido com DDD (mínimo 10 dígitos).");
+      phoneRef.current?.focus();
       return;
     }
-    
-    trackCustomEvent("FormStepComplete", { step: 1, form_id: formId });
+
+    if (validName !== name) setName(validName);
+    if (validEmail !== email) setEmail(validEmail);
+    if (validPhone !== phone) setPhone(formatPhoneNumber(validPhone));
+
+    try {
+      trackCustomEvent("FormStepComplete", { step: 1, form_id: formId });
+    } catch (err) {
+      console.warn("Tracking error:", err);
+    }
     setStep(2);
   };
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     
+    if (step === 1) {
+      handleNextStep();
+      return;
+    }
+
+    setStepError(null);
     if (!instagram || instagram.trim().length < 2) {
-      alert("Por favor, informe o Instagram da clínica.");
+      setStepError("Por favor, informe o Instagram da clínica.");
       return;
     }
     const cleanCrm = crmNumber.replace(/\D/g, "");
     if (!cleanCrm || cleanCrm.length < 4) {
-      alert("Por favor, informe um número de CRM válido com no mínimo 4 dígitos.");
+      setStepError("Por favor, informe um número de CRM válido com no mínimo 4 dígitos.");
       return;
     }
     if (!crmUf) {
-      alert("Por favor, selecione o estado (UF) do seu CRM.");
+      setStepError("Por favor, selecione o estado (UF) do seu CRM.");
       return;
     }
     if (!faturamento) {
-      alert("Por favor, selecione a faixa de faturamento mensal.");
+      setStepError("Por favor, selecione a faixa de faturamento mensal.");
       return;
     }
     if (!investimento) {
-      alert("Por favor, selecione o investimento atual em marketing.");
-      return;
-    }
-    if (!prazo) {
-      alert("Por favor, selecione o prazo estimado para iniciar.");
+      setStepError("Por favor, selecione o investimento atual em marketing.");
       return;
     }
 
@@ -518,6 +743,7 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     }
     const fbpCookie = getCookie("_fbp");
     const externalId = `fa_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    setSubmissionExternalId(externalId);
     const fullCrm = `${crmNumber.trim()}/${crmUf.toUpperCase()}`;
 
     const payload = {
@@ -533,7 +759,7 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
       crm_uf: crmUf.toUpperCase(),
       clinicInstagram: instagram,
       clinicName: instagram,
-      objective: prazo,
+      objective: "",
       revenue: faturamento,
       traffic: investimento,
       score: score,
@@ -548,12 +774,15 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
       faturamento_mensal: faturamento,
       investimento_marketing: investimento,
       objetivo_principal: "",
-      prazo_inicio: prazo,
-      prazo: prazo,
+      prazo_inicio: "",
+      prazo: "",
       tipo_lead: leadClass,
       lead_type: leadClass,
 
       form_used: formId,
+      agendamento: "", // Coluna R (18) NUNCA é preenchida pelo script - estritamente manual para SDR
+      agendamento_calendly: "NÃO AGENDADA",
+      detalhes_agendamento: "NÃO AGENDADA",
 
       // Parâmetros Meta Conversions API (CAPI)
       fbc: fbcCookie,
@@ -596,16 +825,18 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     };
 
     try {
-      const WEBHOOK_URL = import.meta.env.VITE_SHEETS_WEBHOOK_URL || "https://script.google.com/macros/s/AKfycbygkGV6P-Hp90BGHqsLfxF8MMO97EWkUKGEdK0UN1QChG8MU0QP-T68MHq0qz06g2wRtQ/exec";
-      
-      await fetch(WEBHOOK_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: {
-          "Content-Type": "text/plain;charset=utf-8",
-        },
-        body: JSON.stringify(payload),
-      });
+      // Salva dados do lead na ref para envio após agendamento Calendly ou após 90 segundos
+      leadPayloadRef.current = payload;
+      leadSentRef.current = false;
+      isScheduledRef.current = false;
+
+      // Inicia temporizador estrito de 90 segundos
+      if (timeoutTimerRef.current) {
+        clearTimeout(timeoutTimerRef.current);
+      }
+      timeoutTimerRef.current = setTimeout(() => {
+        sendLeadNotScheduled();
+      }, 90000); // 90 segundos
 
       if (typeof window !== "undefined") {
         const win = window as any;
@@ -672,11 +903,11 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
             });
           }
         }
-
-        setIsSubmitted(true);
       }
+
+      setIsSubmitted(true);
     } catch (error) {
-      console.error("Erro ao enviar lead:", error);
+      console.error("Erro ao processar formulário:", error);
       setIsSubmitted(true);
     } finally {
       setIsSubmitting(false);
@@ -689,108 +920,67 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
   return (
     <div className="rounded-2xl border border-[#DDE2D9] bg-[#F4F6F1] p-6 sm:p-7 shadow-xl relative text-left text-[#050705]">
       {isSubmitted && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in overflow-y-auto">
-          <div className="relative my-auto w-full max-w-xl rounded-2xl border border-[#252A25] bg-[#0A0D0A] p-5 sm:p-7 text-center text-[#FFFFFF] shadow-[0_0_50px_rgba(0,0,0,0.9)] max-h-[92vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in overflow-y-auto">
+          <div className="relative my-auto w-full max-w-4xl rounded-2xl border border-[#252A25] bg-[#0A0D0A] p-4 sm:p-6 text-center text-[#FFFFFF] shadow-[0_0_60px_rgba(0,0,0,0.95)] max-h-[95vh] flex flex-col">
             
             {/* Botão de Fechar discreto */}
             <button
               onClick={handleCloseModal}
-              className="absolute top-4 right-4 text-[#667066] hover:text-[#FFFFFF] transition-colors p-1.5 rounded-lg hover:bg-[#1A1F1A]"
+              className="absolute top-4 right-4 text-[#667066] hover:text-[#FFFFFF] transition-colors p-1.5 rounded-lg hover:bg-[#1A1F1A] z-10 cursor-pointer"
               aria-label="Fechar"
             >
               <X className="h-5 w-5" />
             </button>
 
-            {/* CARREGAMENTO FAKE SIMPLIFICADO */}
-            <div className="rounded-xl border border-[#252A25] bg-[#050705] p-4 sm:p-5 mb-5 text-left relative overflow-hidden">
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <div className="flex items-center gap-2.5">
-                  <span className="relative flex h-2.5 w-2.5 shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#8CFF00] opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#8CFF00]"></span>
-                  </span>
-                  <span className="text-xs sm:text-sm font-extrabold text-[#FFFFFF]">
-                    Processando seu cadastro e alocando na fila de espera...
-                  </span>
-                </div>
-                <span className="text-xs font-extrabold text-[#8CFF00] font-mono shrink-0">
-                  {fakeProgress}%
-                </span>
+            {/* Cabeçalho do Agendamento */}
+            <div className="mb-3 sm:mb-4 text-center pr-8 sm:pr-0">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-[#8CFF00]/10 border border-[#8CFF00]/30 px-3.5 py-1 text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-[#8CFF00] shadow-sm mb-2">
+                {isScheduled ? (
+                  <>
+                    <CheckCircle2 className="h-3.5 w-3.5 text-[#8CFF00]" />
+                    REUNIÃO AGENDADA COM SUCESSO
+                  </>
+                ) : (
+                  <>
+                    <Calendar className="h-3.5 w-3.5 text-[#8CFF00]" />
+                    ETAPA FINAL • AGENDAMENTO DA REUNIÃO
+                  </>
+                )}
               </div>
-
-              {/* Barra de Progresso Animada */}
-              <div className="h-2.5 w-full bg-[#181D18] rounded-full overflow-hidden p-0.5 border border-[#252A25]">
-                <div
-                  className="h-full bg-gradient-to-r from-[#5FAE00] via-[#8CFF00] to-[#B6FF4D] rounded-full transition-all duration-700 ease-out shadow-[0_0_12px_rgba(140,255,0,0.6)]"
-                  style={{ width: `${fakeProgress}%` }}
-                />
-              </div>
+              <h3 className="text-lg sm:text-2xl font-black tracking-tight text-[#FFFFFF] leading-snug">
+                {isScheduled
+                  ? "Sua reunião foi confirmada com sucesso!"
+                  : "Escolha o melhor dia e horário para a sua reunião"}
+              </h3>
+              <p className="mt-1 text-xs sm:text-sm text-[#F4F6F1]/80 max-w-lg mx-auto">
+                {isScheduled
+                  ? "Enviamos a confirmação e os detalhes do acesso para o seu e-mail e WhatsApp cadastrados."
+                  : "Seus dados foram recebidos. Agora, selecione um horário na agenda abaixo para realizarmos seu Diagnóstico Estratégico ao vivo."}
+              </p>
             </div>
 
-            {/* BLOCO 2: CTA AGRESSIVA PARA FURAR A FILA */}
-            <div className="space-y-4">
-              
-              {/* Badge de Urgência / Oportunidade VIP */}
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-red-500/15 border border-red-500/30 px-3.5 py-1 text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-red-400 shadow-sm animate-pulse">
-                <Zap className="h-3.5 w-3.5 fill-red-400 text-red-400" />
-                ACESSO PRIORITÁRIO VIP • FURE A FILA
-              </div>
+            {/* Calendly Container de Alta Performance e Sem Cortes */}
+            <div className="w-full flex-1 min-h-[580px] sm:min-h-[660px] max-h-[82vh] rounded-xl border border-[#252A25] overflow-y-auto bg-[#0a0d0a] relative">
+              <iframe
+                src={getCalendlyUrl()}
+                className="w-full h-full min-h-[580px] sm:min-h-[660px] border-0 rounded-xl bg-[#0a0d0a]"
+                title="Agendamento de Reunião Calendly"
+                loading="eager"
+              />
+            </div>
 
-              {/* Headline Agressiva */}
-              <h3 className="text-xl sm:text-2xl lg:text-[25px] font-black tracking-tight text-[#FFFFFF] leading-snug">
-                Não quer esperar 72 horas na fila? <br className="hidden sm:inline" />
-                <span className="text-[#8CFF00]">Fure a fila</span> e receba seu Diagnóstico Exclusivo <span className="underline decoration-[#8CFF00] decoration-2">hoje</span>.
-              </h3>
-
-              {/* Subhead Explicativo */}
-              <p className="text-xs sm:text-sm text-[#F4F6F1]/80 leading-relaxed max-w-lg mx-auto">
-                Devido à alta procura de médicos e clínicas, a fila comum gratuita possui tempo de espera de 2 a 3 dias úteis. Ao ativar o <strong>Acesso VIP Prioritário</strong> por uma taxa simbólica, sua clínica salta direto para a <strong>mesa do nosso Diretor de Estratégia</strong>.
-              </p>
-
-              {/* Bloco de Preço & Oferta Irresistível */}
-              <div className="pt-1">
-                <div className="flex items-center justify-center gap-2 text-xs font-bold text-[#667066] uppercase tracking-wider mb-1">
-                  <span>De <span className="line-through text-red-400/80">R$ 197,00</span></span>
-                  <span>•</span>
-                  <span className="text-[#8CFF00] font-black">Taxa simbólica de prioridade:</span>
-                </div>
-                <div className="text-2xl sm:text-3xl font-black text-[#8CFF00] tracking-tight">
-                  R$ 19,90 <span className="text-xs sm:text-sm font-semibold text-[#F4F6F1]/70 tracking-normal">(pagamento único)</span>
-                </div>
-              </div>
-
-              {/* BOTÃO PRINCIPAL (CTA MEGA AGRESSIVA) */}
-              <button
-                type="button"
-                onClick={handleGoToVipCheckout}
-                className="group relative w-full inline-flex flex-col sm:flex-row h-auto sm:h-[58px] items-center justify-center gap-2 rounded-xl bg-[#8CFF00] px-6 py-3.5 sm:py-0 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all hover:bg-[#7AE000] cursor-pointer shadow-[0_0_30px_rgba(140,255,0,0.4)] hover:shadow-[0_0_40px_rgba(140,255,0,0.6)] hover:scale-[1.01]"
+            {/* Rodapé com link de contingência */}
+            <div className="mt-3 flex items-center justify-between text-left text-xs text-[#667066]">
+              <span className="hidden sm:inline">Reunião online via Google Meet.</span>
+              <a
+                href={getCalendlyUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[#8CFF00] hover:underline font-bold text-[11px] sm:text-xs ml-auto cursor-pointer"
               >
-                <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4 fill-[#050705] shrink-0" />
-                  <span>QUERO FURAR A FILA E ATIVAR MEU ACESSO VIP</span>
-                  <ArrowRight className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-1" />
-                </div>
-              </button>
-
-              <div className="flex items-center justify-center gap-3 text-[10px] text-[#667066] font-semibold uppercase tracking-wider">
-                <span>🔒 Checkout Seguro Kiwify</span>
-                <span>•</span>
-                <span>⚡ Acesso Imediato</span>
-                <span>•</span>
-                <span>💳 Pix ou Cartão</span>
-              </div>
-
-              {/* Opção Secundária Discreta (Esperar na fila comum) */}
-              <div className="pt-1 pb-1">
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  className="text-[11px] sm:text-xs text-[#667066] hover:text-[#F4F6F1] underline transition-colors cursor-pointer"
-                >
-                  Não quero atendimento prioritário, prefiro aguardar até 72h na fila comum.
-                </button>
-              </div>
-
+                <span>Abrir agendamento em nova aba</span>
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
             </div>
 
           </div>
@@ -817,56 +1007,102 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
         </div>
       </div>
 
-      <form onSubmit={onSubmit} className="space-y-3.5">
+      <form onSubmit={onSubmit} autoComplete="on" className="space-y-3.5">
         {step === 1 && (
           <div className="space-y-3.5 animate-fade-in">
             <div>
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-[#050705] mb-1">
+              <label htmlFor="lead_name" className="block text-[11px] font-extrabold uppercase tracking-wider text-[#050705] mb-1">
                 Nome Completo *
               </label>
               <input 
+                id="lead_name"
+                name="name"
+                autoComplete="name"
+                inputMode="text"
+                ref={nameRef}
                 required 
                 type="text" 
                 placeholder="Ex: Dra. Juliana Souza" 
                 value={name}
                 onFocus={() => trackCustomEvent("FormStart", { form_id: formId })}
-                onChange={e => setName(e.target.value)}
+                onChange={e => {
+                  setName(e.target.value);
+                  if (stepError) setStepError(null);
+                }}
+                onBlur={e => {
+                  if (!name && e.target.value) setName(e.target.value);
+                }}
                 className={inputCls} 
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-[#050705] mb-1">
+              <label htmlFor="lead_email" className="block text-[11px] font-extrabold uppercase tracking-wider text-[#050705] mb-1">
                 E-mail Principal *
               </label>
               <input 
+                id="lead_email"
+                name="email"
+                autoComplete="email"
+                inputMode="email"
+                ref={emailRef}
                 required 
                 type="email" 
                 placeholder="Ex: juliana@clinica.com.br" 
                 value={email}
-                onChange={e => setEmail(e.target.value)}
+                onChange={e => {
+                  setEmail(e.target.value);
+                  if (stepError) setStepError(null);
+                }}
+                onBlur={e => {
+                  if (!email && e.target.value) setEmail(e.target.value);
+                }}
                 className={inputCls} 
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-[#050705] mb-1">
+              <label htmlFor="lead_tel" className="block text-[11px] font-extrabold uppercase tracking-wider text-[#050705] mb-1">
                 WhatsApp com DDD *
               </label>
               <input 
+                id="lead_tel"
+                name="tel"
+                autoComplete="tel"
+                inputMode="tel"
+                ref={phoneRef}
                 required 
                 type="tel" 
                 placeholder="Ex: (11) 99999-9999" 
                 value={phone}
                 onChange={handlePhoneChange}
+                onInput={e => {
+                  const val = (e.target as HTMLInputElement).value;
+                  if (val) setPhone(formatPhoneNumber(val));
+                  if (stepError) setStepError(null);
+                }}
+                onBlur={e => {
+                  const val = e.target.value;
+                  if (val) setPhone(formatPhoneNumber(val));
+                }}
                 className={inputCls} 
               />
             </div>
 
+            {stepError && step === 1 && (
+              <div className="rounded-lg bg-red-500/10 border border-red-500/30 p-2.5 text-xs text-red-600 font-bold flex items-center gap-2 animate-fade-in">
+                <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+                <span>{stepError}</span>
+              </div>
+            )}
+
             <button
-              type="button"
-              onClick={handleNextStep}
-              className="mt-2 w-full inline-flex h-[54px] items-center justify-center gap-2 rounded-lg bg-[#8CFF00] px-6 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all hover:bg-[#68BF00] cursor-pointer shadow-md"
+              type="submit"
+              onClick={(e) => {
+                e.preventDefault();
+                handleNextStep();
+              }}
+              className="mt-2 w-full inline-flex h-[54px] items-center justify-center gap-2 rounded-lg bg-[#8CFF00] px-6 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all hover:bg-[#68BF00] cursor-pointer shadow-md active:scale-[0.99]"
             >
               CONTINUAR PARA MINHA ANÁLISE
               <ArrowRight className="h-4.5 w-4.5" />
@@ -952,18 +1188,12 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
               </select>
             </div>
 
-            <div>
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-[#050705] mb-1">
-                Prazo Estimado para Iniciar *
-              </label>
-              <select required value={prazo} onChange={e => setPrazo(e.target.value)} className={inputCls}>
-                <option value="" disabled>Selecione um prazo estimado</option>
-                <option value="Quero iniciar agora">Quero iniciar agora</option>
-                <option value="Nos próximos 30 dias">Nos próximos 30 dias</option>
-                <option value="Nos próximos 60 a 90 dias">Nos próximos 60 a 90 dias</option>
-                <option value="Estou pesquisando possibilidades">Estou pesquisando possibilidades</option>
-              </select>
-            </div>
+            {stepError && step === 2 && (
+              <div className="rounded-lg bg-red-500/10 border border-red-500/30 p-2.5 text-xs text-red-600 font-bold flex items-center gap-2 animate-fade-in">
+                <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+                <span>{stepError}</span>
+              </div>
+            )}
 
             <div className="flex gap-2 pt-2">
               <button

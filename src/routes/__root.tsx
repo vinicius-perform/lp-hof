@@ -98,6 +98,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "" },
+      { rel: "preconnect", href: "https://calendly.com" },
+      { rel: "dns-prefetch", href: "https://calendly.com" },
+      { rel: "preconnect", href: "https://assets.calendly.com" },
       {
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap",
@@ -140,6 +143,7 @@ function RootShell({ children }: { children: ReactNode }) {
             src="https://www.facebook.com/tr?id=1049112404466926&ev=PageView&noscript=1"
           />
         </noscript>
+        <script src="https://assets.calendly.com/assets/external/widget.js" async />
       </head>
       <body>
         {children}
