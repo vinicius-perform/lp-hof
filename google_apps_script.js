@@ -1,7 +1,7 @@
 /**
- * Google Apps Script - Integração Diagnóstico FA (Com suporte UTF-8, Meta Ads CAPI, Agendamento Interno Nativo, Distribuição SDR/Closers, Supabase e Identificação de LP)
+ * Google Apps Script - Integração Diagnóstico FA (Com suporte UTF-8, Meta Ads CAPI, Triggers, Distribuição SDR, Supabase e Identificação de LP)
  * 
- * Mapeamento das colunas A até AA (27 colunas):
+ * Mapeamento das colunas A até Y (25 colunas):
  * A: Data/Hora
  * B: LP (Identificação da LP: ex "LP1", "LP FA2")
  * C: Nome
@@ -19,7 +19,7 @@
  * O: Conjunto (ID do Conjunto de Anúncios)
  * P: Anúncio (ID do Anúncio)
  * Q: SDR
- * R: AGENDAMENTO (Sim / Não) - Coluna 18 (NUNCA MODIFICAR MANUALMENTE!)
+ * R: AGENDAMENTO (Sim / Não)
  * S: VENDA (Sim / Não)
  * T: VALOR DE CONVERSÃO (Número R$)
  * U: FBC_FBCLID (Cookie / ID de Clique Meta)
@@ -27,8 +27,6 @@
  * W: EXTERNAL_ID (ID Único do Lead)
  * X: CAPI_AGENDAMENTO_ENVIADO (Status/Timestamp do Envio)
  * Y: CAPI_VENDA_ENVIADO (Status/Timestamp do Envio)
- * Z: DATA E HORA REUNIÃO (Coluna 26 - Agendamento Interno)
- * AA: CLOSER (Coluna 27 - José ou Mathyas)
  */
 
 var META_PIXEL_ID = "1049112404466926";
@@ -38,20 +36,7 @@ function doPost(e) {
   try {
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     
-    // 1. Garantir que a planilha tenha pelo menos 27 colunas (A até AA) para nunca dar erro de dimensão
-    if (sheet.getMaxColumns() < 27) {
-      sheet.insertColumnsAfter(sheet.getMaxColumns(), 27 - sheet.getMaxColumns());
-    }
-
-    // 2. Garantir cabeçalhos Z (DATA DE AGENDAMENTO) e AA (CLOSER) se a linha 1 existir
-    if (sheet.getLastRow() >= 1) {
-      var hZ = String(sheet.getRange(1, 26).getValue() || "").trim();
-      if (!hZ) sheet.getRange(1, 26).setValue("DATA DE AGENDAMENTO");
-      var hAA = String(sheet.getRange(1, 27).getValue() || "").trim();
-      if (!hAA) sheet.getRange(1, 27).setValue("CLOSER");
-    }
-
-    // 3. Garantir decodificação UTF-8 correta para acentuação
+    // Garantir decodificação UTF-8 correta para acentuação
     var jsonString = "";
     if (e.postData && e.postData.bytes) {
       jsonString = Utilities.newBlob(e.postData.bytes).getDataAsString("UTF-8");
@@ -61,137 +46,7 @@ function doPost(e) {
       jsonString = "{}";
     }
     
-    var data = {};
-    try {
-      data = JSON.parse(jsonString);
-    } catch(errJson) {
-      data = (e && e.parameter) ? e.parameter : {};
-    }
-
-    var action = (data && data.action) || (e && e.parameter && e.parameter.action) || "";
-
-    // 1. ENDPOINT PARA CONSULTA DE HORÁRIOS OCUPADOS (Por Closer)
-    if (action === "get_booked_slots") {
-      var closerFiltro = String(data.closer || (e && e.parameter && e.parameter.closer) || "").trim().toLowerCase();
-      var booked = [];
-      var lastR = sheet.getLastRow();
-      if (lastR > 1) {
-        var numCols = Math.min(27, sheet.getLastColumn());
-        if (numCols >= 26) {
-          var slotValues = sheet.getRange(2, 26, lastR - 1, numCols >= 27 ? 2 : 1).getValues();
-          for (var b = 0; b < slotValues.length; b++) {
-            var slotStr = String(slotValues[b][0] || "").trim();
-            var slotCloser = slotValues[b][1] ? String(slotValues[b][1]).trim().toLowerCase() : "";
-            if (slotStr && slotStr !== "NÃO AGENDADA" && slotStr !== "") {
-              if (!closerFiltro || !slotCloser || slotCloser === closerFiltro) {
-                booked.push(slotStr);
-              }
-            }
-          }
-        }
-      }
-      return ContentService.createTextOutput(JSON.stringify({
-        result: "success",
-        closer: closerFiltro,
-        booked_slots: booked
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // 2. ENDPOINT PARA CONFIRMAR AGENDAMENTO INTERNO (NUNCA CRIA LINHA DUPLICADA!)
-    if (action === "confirm_schedule" || action === "update_agendamento") {
-      var searchExternalId = String(data.external_id || data.EXTERNAL_ID || (e && e.parameter && e.parameter.external_id) || "").trim();
-      var searchEmail = String(data.email || data.e_mail || (e && e.parameter && e.parameter.email) || "").trim().toLowerCase();
-      var searchPhone = String(data.phone || data.whatsapp || (e && e.parameter && e.parameter.phone) || "").replace(/\D/g, "");
-      var dataReuniao = String(data.data_reuniao || data.agendamento_reuniao || (e && e.parameter && e.parameter.data_reuniao) || "").trim();
-      var closerName = String(data.closer || (e && e.parameter && e.parameter.closer) || "").trim();
-
-      var lastRow = sheet.getLastRow();
-      var targetRow = -1;
-
-      if (lastRow > 1) {
-        var numCols = Math.min(27, sheet.getLastColumn());
-        var values = sheet.getRange(2, 1, lastRow - 1, numCols).getValues();
-
-        // Busca 1: por external_id (Coluna W / índice 22)
-        if (searchExternalId && numCols >= 23) {
-          for (var i = values.length - 1; i >= 0; i--) {
-            if (String(values[i][22] || "").trim() === searchExternalId) {
-              targetRow = i + 2;
-              break;
-            }
-          }
-        }
-
-        // Busca 2: por e-mail (Coluna E / índice 4)
-        if (targetRow === -1 && searchEmail && numCols >= 5) {
-          for (var j = values.length - 1; j >= 0; j--) {
-            if (String(values[j][4] || "").trim().toLowerCase() === searchEmail) {
-              targetRow = j + 2;
-              break;
-            }
-          }
-        }
-
-        // Busca 3: por telefone (Coluna D / índice 3)
-        if (targetRow === -1 && searchPhone && numCols >= 4) {
-          for (var k = values.length - 1; k >= 0; k--) {
-            var rowPhone = String(values[k][3] || "").replace(/\D/g, "");
-            if (rowPhone && (rowPhone === searchPhone || rowPhone.indexOf(searchPhone) !== -1 || searchPhone.indexOf(rowPhone) !== -1)) {
-              targetRow = k + 2;
-              break;
-            }
-          }
-        }
-
-        // Fallback: última linha se não achou
-        if (targetRow === -1) {
-          targetRow = lastRow;
-        }
-      }
-
-      if (targetRow !== -1) {
-        // NUNCA MEXER NA COLUNA R (18) - Reservada estritamente para preenchimento manual da equipe/SDR
-        sheet.getRange(targetRow, 26).setValue(dataReuniao); // Coluna Z (DATA E HORA REUNIÃO)
-        if (closerName) {
-          sheet.getRange(targetRow, 27).setValue(closerName);  // Coluna AA (CLOSER)
-        }
-
-        // Envia evento de Schedule para Meta CAPI se ainda não enviado
-        var currentCapiStatus = String(sheet.getRange(targetRow, 24).getValue() || "");
-        if (!currentCapiStatus || currentCapiStatus.indexOf("(Enviado)") === -1) {
-          var leadVals = sheet.getRange(targetRow, 1, 1, Math.min(27, sheet.getLastColumn())).getValues()[0];
-          var leadToCapi = {
-            name: leadVals[2],
-            phone: leadVals[3],
-            email: leadVals[4],
-            fbc: leadVals[20],
-            fbp: leadVals[21],
-            externalId: leadVals[22]
-          };
-          var resSched = sendMetaCapiEvent("Schedule", leadToCapi, null);
-          if (resSched && !resSched.error && (!resSched.events_received || resSched.events_received > 0)) {
-            var nowCapi = Utilities.formatDate(new Date(), "America/Sao_Paulo", "dd/MM/yyyy HH:mm:ss");
-            sheet.getRange(targetRow, 24).setValue(nowCapi + " (Enviado)");
-          }
-        }
-
-        // Atualiza Supabase
-        enviarParaSupabase({
-          email: searchEmail,
-          telefone: searchPhone,
-          agendamento_reuniao: dataReuniao,
-          closer: closerName
-        });
-
-        return ContentService
-          .createTextOutput(JSON.stringify({ result: "success", updated_row: targetRow, data_reuniao: dataReuniao, closer: closerName }))
-          .setMimeType(ContentService.MimeType.JSON);
-      }
-
-      return ContentService
-        .createTextOutput(JSON.stringify({ result: "not_found", message: "Lead não localizado para atualizar agendamento" }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
+    var data = JSON.parse(jsonString);
 
     // Mapeamento dos campos recebidos
     var dataHora = data.timestamp || data.data_horario || new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
@@ -228,20 +83,6 @@ function doPost(e) {
     var nome = data.nome || data.name || "";
     var telefone = data.whatsapp || data.phone || "";
     var email = data.e_mail || data.email || "";
-
-    // Proteção estrita anti-duplicidade: se a requisição não tem nome, mas tem telefone/email e data_reuniao, é atualização de agendamento e NUNCA novo lead
-    if (!nome && (email || telefone) && (data.data_reuniao || data.agendamento_reuniao)) {
-      var dReuniaoRec = String(data.data_reuniao || data.agendamento_reuniao).trim();
-      var cCloserRec = String(data.closer || "").trim();
-      var lRow = sheet.getLastRow();
-      if (lRow > 1) {
-        sheet.getRange(lRow, 26).setValue(dReuniaoRec);
-        if (cCloserRec) sheet.getRange(lRow, 27).setValue(cCloserRec);
-        return ContentService
-          .createTextOutput(JSON.stringify({ result: "success_auto_recovered", updated_row: lRow }))
-          .setMimeType(ContentService.MimeType.JSON);
-      }
-    }
     var nomeClinica = data.instagram_clinica || data.clinicInstagram || data.clinicName || "";
     var crm = data.crm || data.CRM || data.especialidade || "";
     var especialidade = crm;
@@ -307,8 +148,7 @@ function doPost(e) {
     }
 
     // Campos de Operação Comercial
-    // Coluna R (18) NUNCA é preenchida pelo script - estritamente manual para SDR
-    var agendamento = "";
+    var agendamento = data.agendamento || "";
     var venda = data.venda || "";
     var valorConversao = data.valor_conversao || "";
 
@@ -321,30 +161,7 @@ function doPost(e) {
     var capiAgendamentoEnviado = "";
     var capiVendaEnviado = "";
 
-    // Atribuição de Closer (Coluna AA) baseada estritamente na regra de Faturamento:
-    // - Menos de R$35 mil OU R$35 a R$50 mil -> José
-    // - A partir de R$50 mil (R$50 mil a R$100 mil / acima de R$100 mil) -> Mathyas
-    var closerAtribuido = "";
-    var fatuStr = String(faturamento).toLowerCase();
-    if (
-      fatuStr.indexOf("menos de") !== -1 ||
-      fatuStr.indexOf("menos de r$ 35") !== -1 ||
-      fatuStr.indexOf("35 a 50") !== -1 ||
-      fatuStr.indexOf("35 mil a 50") !== -1 ||
-      fatuStr.indexOf("35") !== -1
-    ) {
-      closerAtribuido = "José";
-    } else {
-      closerAtribuido = "Mathyas";
-    }
-    if (data.closer) {
-      closerAtribuido = data.closer;
-    }
-
-    // Data e Hora da Reunião (Coluna Z) - Inicialmente em branco até o lead selecionar no popup
-    var dataReuniao = data.data_reuniao || data.agendamento_reuniao || "";
-
-    // Linha a ser adicionada na planilha (Colunas A -> AA, totalizando 27 colunas)
+    // Linha a ser adicionada na planilha (Colunas A -> Y, totalizando 25 colunas)
     var row = [
       dataHora,               // Coluna A
       identificacaoLP,        // Coluna B (LP)
@@ -363,16 +180,14 @@ function doPost(e) {
       conjunto,               // Coluna O
       anuncio,                // Coluna P
       sdrAtribuido,           // Coluna Q
-      agendamento,            // Coluna R (NUNCA MODIFICADA PELO SCRIPT)
+      agendamento,            // Coluna R
       venda,                  // Coluna S
       valorConversao,         // Coluna T
       fbc,                    // Coluna U
       fbp,                    // Coluna V
       externalId,             // Coluna W
       capiAgendamentoEnviado, // Coluna X
-      capiVendaEnviado,       // Coluna Y
-      dataReuniao,            // Coluna Z (DATA E HORA REUNIÃO)
-      closerAtribuido         // Coluna AA (CLOSER - José ou Mathyas)
+      capiVendaEnviado        // Coluna Y
     ];
 
     sheet.appendRow(row);
@@ -398,14 +213,12 @@ function doPost(e) {
       sdr: sdrAtribuido,
       agendamento: agendamento,
       venda: venda,
-      valor_conversao: valorConversao,
-      data_reuniao: dataReuniao,
-      closer: closerAtribuido
+      valor_conversao: valorConversao
     };
     enviarParaSupabase(leadSupabase);
 
     return ContentService
-      .createTextOutput(JSON.stringify({ result: "success", row: row, closer: closerAtribuido }))
+      .createTextOutput(JSON.stringify({ result: "success", row: row }))
       .setMimeType(ContentService.MimeType.JSON);
 
   } catch (error) {
@@ -416,48 +229,7 @@ function doPost(e) {
 }
 
 function doGet(e) {
-  try {
-    var action = (e && e.parameter && e.parameter.action) || "";
-    if (action === "get_booked_slots") {
-      var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-      if (sheet.getMaxColumns() < 27) {
-        sheet.insertColumnsAfter(sheet.getMaxColumns(), 27 - sheet.getMaxColumns());
-      }
-      var lastRow = sheet.getLastRow();
-      var closerFilter = String((e.parameter && e.parameter.closer) || "").trim().toLowerCase();
-      var bookedSlots = [];
-      
-      if (lastRow > 1) {
-        var numCols = Math.min(27, sheet.getLastColumn());
-        if (numCols >= 26) {
-          var values = sheet.getRange(2, 26, lastRow - 1, numCols >= 27 ? 2 : 1).getValues();
-          for (var i = 0; i < values.length; i++) {
-            var slotStr = String(values[i][0] || "").trim();
-            var slotCloser = values[i][1] ? String(values[i][1]).trim().toLowerCase() : "";
-            
-            if (slotStr && slotStr !== "NÃO AGENDADA" && slotStr !== "") {
-              if (!closerFilter || !slotCloser || slotCloser === closerFilter) {
-                bookedSlots.push(slotStr);
-              }
-            }
-          }
-        }
-      }
-      
-      return ContentService.createTextOutput(JSON.stringify({
-        result: "success",
-        closer: closerFilter,
-        booked_slots: bookedSlots
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({
-      result: "error",
-      message: err.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-  
-  return ContentService.createTextOutput("Webhook de diagnóstico FA ativo com suporte a Agendamento Interno Nativo, Meta CAPI e Closers (José e Mathyas)!");
+  return ContentService.createTextOutput("Webhook de diagnóstico FA ativo com suporte a Meta CAPI, Distribuição de SDR e Múltiplas LPs!");
 }
 
 /**
@@ -626,7 +398,7 @@ function onEditTrigger(e) {
   // Agora Coluna R (18) é AGENDAMENTO e Coluna S (19) é VENDA
   if (col !== 18 && col !== 19) return;
   
-  var rowValues = sheet.getRange(row, 1, 1, 27).getValues()[0];
+  var rowValues = sheet.getRange(row, 1, 1, 25).getValues()[0];
   
   var lp = rowValues[1];                 // Coluna B (2)
   var nome = rowValues[2];               // Coluna C (3)
@@ -718,7 +490,7 @@ function processAllPendingCapiEvents() {
     return;
   }
   
-  var dataRange = sheet.getRange(2, 1, lastRow - 1, 27).getValues();
+  var dataRange = sheet.getRange(2, 1, lastRow - 1, 25).getValues();
   var sentCount = 0;
   var errorCount = 0;
   var nowStr = Utilities.formatDate(new Date(), "America/Sao_Paulo", "dd/MM/yyyy HH:mm:ss");
@@ -826,7 +598,7 @@ function sincronizarHistoricoSupabase() {
     return;
   }
   
-  var dataRange = sheet.getRange(2, 1, lastRow - 1, 27).getValues();
+  var dataRange = sheet.getRange(2, 1, lastRow - 1, 25).getValues();
   var successCount = 0;
   var errorCount = 0;
   

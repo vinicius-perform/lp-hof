@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect, useRef, useMemo, type FormEvent, type ReactNode } from "react";
+import { useState, useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { 
   ArrowRight, 
   ArrowLeft,
@@ -18,8 +18,7 @@ import {
   Zap,
   ShieldCheck,
   AlertTriangle,
-  Sparkles,
-  Calendar
+  Sparkles
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -325,147 +324,77 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
   const [instagram, setInstagram] = useState("");
   const [faturamento, setFaturamento] = useState("");
   const [investimento, setInvestimento] = useState("");
-  // Estados do Agendamento Interno Nativo
-  const [submissionExternalId, setSubmissionExternalId] = useState("");
-  const [selectedDate, setSelectedDate] = useState(""); // YYYY-MM-DD
-  const [selectedTime, setSelectedTime] = useState(""); // HH:mm
-  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
-  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
-  const [isConfirmingSchedule, setIsConfirmingSchedule] = useState(false);
-  const [isScheduleConfirmed, setIsScheduleConfirmed] = useState(false);
-  const [confirmedDateDisplay, setConfirmedDateDisplay] = useState("");
-  const [assignedCloser, setAssignedCloser] = useState("");
+  const [prazo, setPrazo] = useState("");
+  const [fakeProgress, setFakeProgress] = useState(25);
 
-  // Regra de atribuição de closer baseada em faturamento:
-  // - Menos de R$ 35 mil / R$ 35 a R$ 50 mil -> José
-  // - A partir de R$ 50 mil -> Mathyas
-  const getCloserByFaturamento = (fat: string) => {
-    const fLower = String(fat || "").toLowerCase();
-    if (
-      fLower.includes("menos de") ||
-      fLower.includes("35 a 50") ||
-      fLower.includes("35 mil a") ||
-      fLower.includes("menos")
-    ) {
-      return "José";
-    }
-    return "Mathyas";
-  };
-
-  // Próximos dias disponíveis (Segunda a Sábado, sem Domingos)
-  const availableDays = useMemo(() => {
-    const list = [];
-    const now = new Date();
-    let offset = 0;
-    let count = 0;
-
-    const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-    const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-    const fullMonthNames = [
-      "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-      "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-    ];
-
-    while (count < 12 && offset < 20) {
-      const d = new Date(now);
-      d.setDate(now.getDate() + offset);
-      const dow = d.getDay(); // 0 = Dom, 6 = Sáb
-
-      if (dow !== 0) {
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, "0");
-        const dd = String(d.getDate()).padStart(2, "0");
-        const dateKey = `${yyyy}-${mm}-${dd}`;
-        const brDate = `${dd}/${mm}/${yyyy}`;
-
-        let label = dayNames[dow];
-        if (offset === 0) label = "Hoje";
-        else if (offset === 1) label = "Amanhã";
-
-        const fullFormatted = `${dow === 6 ? "Sábado" : label === "Hoje" || label === "Amanhã" ? label + " (" + dayNames[dow] + ")" : dayNames[dow] + "-feira"}, ${dd} de ${fullMonthNames[d.getMonth()]}`;
-
-        list.push({
-          dateKey,
-          brDate,
-          dayOfWeek: dow,
-          dayName: dayNames[dow],
-          label,
-          dayNumber: dd,
-          monthName: monthNames[d.getMonth()],
-          fullFormatted
-        });
-        count++;
-      }
-      offset++;
-    }
-    return list;
-  }, []);
-
-  // Seleciona automaticamente o primeiro dia útil ao carregar
   useEffect(() => {
-    if (availableDays.length > 0 && !selectedDate) {
-      setSelectedDate(availableDays[0].dateKey);
+    if (!isSubmitted) {
+      setFakeProgress(25);
+      return;
     }
-  }, [availableDays, selectedDate]);
-
-  // Horários disponíveis para a data selecionada (intervalos de 45 min)
-  // Segunda a Sexta: 08h às 12h, 14h às 19h
-  // Sábado: 08h às 12h
-  const currentSlots = useMemo(() => {
-    const curDay = availableDays.find(d => d.dateKey === selectedDate) || availableDays[0];
-    if (!curDay) return { currentDay: null, morning: [], afternoon: [] };
-
-    const dow = curDay.dayOfWeek;
-    const morningList = ["08:00", "08:45", "09:30", "10:15", "11:00"];
-    const afternoonList = dow === 6
-      ? []
-      : ["14:00", "14:45", "15:30", "16:15", "17:00", "17:45", "18:15"];
-
-    const now = new Date();
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, "0");
-    const dd = String(now.getDate()).padStart(2, "0");
-    const todayKey = `${yyyy}-${mm}-${dd}`;
-    const isToday = curDay.dateKey === todayKey;
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-    const checkSlot = (time: string) => {
-      // 1. Passado (com antecedência mínima de 30 minutos se for hoje)
-      if (isToday) {
-        const [h, m] = time.split(":").map(Number);
-        if (h * 60 + m <= currentMinutes + 30) {
-          return { isAvailable: false, reason: "passado" };
-        }
-      }
-
-      // 2. Ocupado para este closer
-      const isBooked = bookedSlots.some(b => {
-        const str = String(b).trim();
-        const matchesDate = str.includes(curDay.brDate) || str.includes(curDay.dateKey);
-        const matchesTime = str.includes(time);
-        return matchesDate && matchesTime;
-      });
-
-      if (isBooked) {
-        return { isAvailable: false, reason: "ocupado" };
-      }
-
-      return { isAvailable: true, reason: "" };
+    const t1 = setTimeout(() => setFakeProgress(52), 700);
+    const t2 = setTimeout(() => setFakeProgress(78), 1800);
+    const t3 = setTimeout(() => setFakeProgress(94), 3000);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
     };
+  }, [isSubmitted]);
 
-    return {
-      currentDay: curDay,
-      morning: morningList.map(time => ({ time, ...checkSlot(time) })),
-      afternoon: afternoonList.map(time => ({ time, ...checkSlot(time) }))
-    };
-  }, [availableDays, selectedDate, bookedSlots]);
+  const handleGoToVipCheckout = () => {
+    trackCustomEvent("VIPFastTrackCheckoutClick", {
+      value: 19.90,
+      form_id: formId,
+      lead_name: name,
+      lead_phone: phone,
+      lead_email: email
+    });
+    if (typeof window !== "undefined") {
+      const win = window as any;
+      if (typeof win.fbq === "function") {
+        win.fbq("track", "InitiateCheckout", {
+          content_name: "Diagnostico Estrategico VIP - Furar Fila",
+          currency: "BRL",
+          value: 19.90
+        });
+      }
+    }
+    const kiwiBase = "https://pay.kiwify.com.br/LjM9uMe";
+    const params = new URLSearchParams();
+    if (name) params.append("name", name);
+    if (email) params.append("email", email);
+    if (phone) {
+      const cleanPhone = phone.replace(/\D/g, "");
+      params.append("phone", cleanPhone);
+    }
+    if (utms?.utm_source) params.append("utm_source", utms.utm_source);
+    if (utms?.utm_medium) params.append("utm_medium", utms.utm_medium);
+    if (utms?.utm_campaign) params.append("utm_campaign", utms.utm_campaign);
+    if (utms?.utm_content) params.append("utm_content", utms.utm_content);
+    if (utms?.utm_term) params.append("utm_term", utms.utm_term);
+    if (utms?.fbclid) params.append("fbclid", utms.fbclid);
+    const fullUrl = `${kiwiBase}?${params.toString()}`;
+    const popupWidth = 520;
+    const popupHeight = 800;
+    const left = typeof window !== "undefined" ? Math.max(0, (window.screen.width - popupWidth) / 2) : 0;
+    const top = typeof window !== "undefined" ? Math.max(0, (window.screen.height - popupHeight) / 2) : 0;
+    
+    // Abre como uma janela pop-up dedicada sobre a página atual
+    const checkoutWindow = window.open(
+      fullUrl,
+      "kiwify_checkout",
+      `width=${popupWidth},height=${popupHeight},top=${top},left=${left},scrollbars=yes,resizable=yes`
+    );
+    
+    // Fallback: se o navegador bloquear janela popup, abre em nova aba para não perder a página original
+    if (!checkoutWindow || checkoutWindow.closed || typeof checkoutWindow.closed === "undefined") {
+      window.open(fullUrl, "_blank");
+    }
+  };
 
   const handleCloseModal = () => {
     setIsSubmitted(false);
-    setIsScheduleConfirmed(false);
-    setConfirmedDateDisplay("");
-    setSelectedTime("");
-    setSubmissionExternalId("");
     setStep(1);
     setName("");
     setEmail("");
@@ -475,71 +404,8 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     setInstagram("");
     setFaturamento("");
     setInvestimento("");
-  };
-
-  const handleConfirmSchedule = async () => {
-    if (!selectedDate || !selectedTime) {
-      alert("Por favor, selecione um horário disponível.");
-      return;
-    }
-
-    const curDay = availableDays.find(d => d.dateKey === selectedDate);
-    if (!curDay) return;
-
-    const dataHoraFinal = `${curDay.brDate} às ${selectedTime}`;
-    setIsConfirmingSchedule(true);
-
-    try {
-      const WEBHOOK_URL = import.meta.env.VITE_SHEETS_WEBHOOK_URL || "https://script.google.com/macros/s/AKfycbygkGV6P-Hp90BGHqsLfxF8MMO97EWkUKGEdK0UN1QChG8MU0QP-T68MHq0qz06g2wRtQ/exec";
-
-      await fetch(`${WEBHOOK_URL}?action=confirm_schedule`, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-          action: "confirm_schedule",
-          external_id: submissionExternalId,
-          email: email,
-          phone: phone,
-          data_reuniao: dataHoraFinal,
-          closer: assignedCloser
-        })
-      });
-
-      // Bloqueia localmente para evitar repetições
-      setBookedSlots(prev => [...prev, dataHoraFinal]);
-
-      if (typeof window !== "undefined") {
-        const win = window as any;
-        if (typeof win.fbq === "function") {
-          win.fbq("track", "Schedule", {
-            content_name: "Diagnostico Estrategico FA Agendado",
-            currency: "BRL"
-          }, { eventID: `${submissionExternalId}_schedule` });
-
-          win.fbq("trackCustom", "ReuniaoAgendada", {
-            data_reuniao: dataHoraFinal,
-            closer: assignedCloser
-          }, { eventID: `${submissionExternalId}_reuniao_agendada` });
-        }
-        if (win.dataLayer && Array.isArray(win.dataLayer)) {
-          win.dataLayer.push({
-            event: "reuniao_agendada",
-            data_reuniao: dataHoraFinal,
-            closer: assignedCloser
-          });
-        }
-      }
-
-      setConfirmedDateDisplay(`${curDay.fullFormatted} às ${selectedTime}`);
-      setIsScheduleConfirmed(true);
-    } catch (err) {
-      console.error("Erro ao confirmar agendamento:", err);
-      setConfirmedDateDisplay(`${curDay.fullFormatted} às ${selectedTime}`);
-      setIsScheduleConfirmed(true);
-    } finally {
-      setIsConfirmingSchedule(false);
-    }
+    setPrazo("");
+    setFakeProgress(25);
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -601,12 +467,19 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
       alert("Por favor, selecione o investimento atual em marketing.");
       return;
     }
+    if (!prazo) {
+      alert("Por favor, selecione o prazo estimado para iniciar.");
+      return;
+    }
 
     setIsSubmitting(true);
     setLeadName(name);
 
     // Classificação estrita pelo faturamento (Coluna L e Meta Pixel):
-    // Menos de 35: D | 35 a 50: C | 50 a 100: B | Acima de 100: A
+    // Menos de 35: D
+    // 35 a 50: C
+    // 50 a 100: B
+    // Acima de 100: A
     let leadClass: "A" | "B" | "C" | "D" = "D";
     const fatLower = faturamento.toLowerCase();
     if (fatLower.includes("menos de") || fatLower.includes("< 35") || fatLower.includes("não atinjo") || fatLower.includes("nao atinjo")) {
@@ -620,11 +493,6 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     } else {
       leadClass = "D";
     }
-
-    // Closer atribuído pela regra de faturamento (Coluna AA):
-    // Menos de R$ 35 mil / R$ 35 a R$ 50 mil -> José | A partir de R$ 50 mil -> Mathyas
-    const leadCloser = getCloserByFaturamento(faturamento);
-    setAssignedCloser(leadCloser);
 
     // Cálculo de pontuação (Coluna K)
     let score = 0;
@@ -650,7 +518,6 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     }
     const fbpCookie = getCookie("_fbp");
     const externalId = `fa_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    setSubmissionExternalId(externalId);
     const fullCrm = `${crmNumber.trim()}/${crmUf.toUpperCase()}`;
 
     const payload = {
@@ -666,7 +533,7 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
       crm_uf: crmUf.toUpperCase(),
       clinicInstagram: instagram,
       clinicName: instagram,
-      objective: "",
+      objective: prazo,
       revenue: faturamento,
       traffic: investimento,
       score: score,
@@ -681,13 +548,10 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
       faturamento_mensal: faturamento,
       investimento_marketing: investimento,
       objetivo_principal: "",
-      prazo_inicio: "",
-      prazo: "",
+      prazo_inicio: prazo,
+      prazo: prazo,
       tipo_lead: leadClass,
       lead_type: leadClass,
-      closer: leadCloser,
-      data_reuniao: "",
-      agendamento: "", // Coluna R (18) NUNCA é modificada
 
       form_used: formId,
 
@@ -808,23 +672,9 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
             });
           }
         }
+
+        setIsSubmitted(true);
       }
-
-      // Abre o modal de agendamento interno nativo
-      setIsSubmitted(true);
-
-      // Consulta horários ocupados para o closer deste lead
-      setIsLoadingSlots(true);
-      fetch(`${WEBHOOK_URL}?action=get_booked_slots&closer=${encodeURIComponent(leadCloser)}`)
-        .then(r => r.json())
-        .then(data => {
-          if (data && Array.isArray(data.booked_slots)) {
-            setBookedSlots(data.booked_slots);
-          }
-        })
-        .catch(err => console.error("Erro ao carregar horários ocupados:", err))
-        .finally(() => setIsLoadingSlots(false));
-
     } catch (error) {
       console.error("Erro ao enviar lead:", error);
       setIsSubmitted(true);
@@ -840,289 +690,108 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     <div className="rounded-2xl border border-[#DDE2D9] bg-[#F4F6F1] p-6 sm:p-7 shadow-xl relative text-left text-[#050705]">
       {isSubmitted && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in overflow-y-auto">
-          <div className="relative my-auto w-full max-w-2xl rounded-2xl border border-[#252A25] bg-[#0A0D0A] p-5 sm:p-7 text-center text-[#FFFFFF] shadow-[0_0_60px_rgba(0,0,0,0.95)] max-h-[92vh] overflow-y-auto">
+          <div className="relative my-auto w-full max-w-xl rounded-2xl border border-[#252A25] bg-[#0A0D0A] p-5 sm:p-7 text-center text-[#FFFFFF] shadow-[0_0_50px_rgba(0,0,0,0.9)] max-h-[92vh] overflow-y-auto">
             
             {/* Botão de Fechar discreto */}
             <button
               onClick={handleCloseModal}
-              className="absolute top-4 right-4 text-[#667066] hover:text-[#FFFFFF] transition-colors p-1.5 rounded-lg hover:bg-[#1A1F1A] cursor-pointer z-10"
+              className="absolute top-4 right-4 text-[#667066] hover:text-[#FFFFFF] transition-colors p-1.5 rounded-lg hover:bg-[#1A1F1A]"
               aria-label="Fechar"
             >
               <X className="h-5 w-5" />
             </button>
 
-            {/* ESTADO 1: CONFIRMAÇÃO DE SUCESSO */}
-            {isScheduleConfirmed ? (
-              <div className="py-4 space-y-5 animate-fade-in text-center">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#8CFF00]/15 border-2 border-[#8CFF00] shadow-[0_0_30px_rgba(140,255,0,0.4)]">
-                  <CheckCircle2 className="h-9 w-9 text-[#8CFF00]" />
+            {/* CARREGAMENTO FAKE SIMPLIFICADO */}
+            <div className="rounded-xl border border-[#252A25] bg-[#050705] p-4 sm:p-5 mb-5 text-left relative overflow-hidden">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="relative flex h-2.5 w-2.5 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#8CFF00] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#8CFF00]"></span>
+                  </span>
+                  <span className="text-xs sm:text-sm font-extrabold text-[#FFFFFF]">
+                    Processando seu cadastro e alocando na fila de espera...
+                  </span>
                 </div>
+                <span className="text-xs font-extrabold text-[#8CFF00] font-mono shrink-0">
+                  {fakeProgress}%
+                </span>
+              </div>
 
-                <div className="space-y-1.5">
-                  <div className="inline-flex items-center gap-1.5 rounded-full bg-[#8CFF00]/10 border border-[#8CFF00]/30 px-3.5 py-1 text-[11px] font-black uppercase tracking-widest text-[#8CFF00]">
-                    HORÁRIO RESERVADO COM SUCESSO
-                  </div>
-                  <h3 className="text-2xl sm:text-3xl font-black tracking-tight text-[#FFFFFF]">
-                    Sua reunião foi confirmada!
-                  </h3>
-                  <p className="text-xs sm:text-sm text-[#F4F6F1]/80 max-w-md mx-auto">
-                    Excelente, {name || "Doutor(a)"}! Seu Diagnóstico Estratégico ao vivo está garantido na nossa agenda.
-                  </p>
+              {/* Barra de Progresso Animada */}
+              <div className="h-2.5 w-full bg-[#181D18] rounded-full overflow-hidden p-0.5 border border-[#252A25]">
+                <div
+                  className="h-full bg-gradient-to-r from-[#5FAE00] via-[#8CFF00] to-[#B6FF4D] rounded-full transition-all duration-700 ease-out shadow-[0_0_12px_rgba(140,255,0,0.6)]"
+                  style={{ width: `${fakeProgress}%` }}
+                />
+              </div>
+            </div>
+
+            {/* BLOCO 2: CTA AGRESSIVA PARA FURAR A FILA */}
+            <div className="space-y-4">
+              
+              {/* Badge de Urgência / Oportunidade VIP */}
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-red-500/15 border border-red-500/30 px-3.5 py-1 text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-red-400 shadow-sm animate-pulse">
+                <Zap className="h-3.5 w-3.5 fill-red-400 text-red-400" />
+                ACESSO PRIORITÁRIO VIP • FURE A FILA
+              </div>
+
+              {/* Headline Agressiva */}
+              <h3 className="text-xl sm:text-2xl lg:text-[25px] font-black tracking-tight text-[#FFFFFF] leading-snug">
+                Não quer esperar 72 horas na fila? <br className="hidden sm:inline" />
+                <span className="text-[#8CFF00]">Fure a fila</span> e receba seu Diagnóstico Exclusivo <span className="underline decoration-[#8CFF00] decoration-2">hoje</span>.
+              </h3>
+
+              {/* Subhead Explicativo */}
+              <p className="text-xs sm:text-sm text-[#F4F6F1]/80 leading-relaxed max-w-lg mx-auto">
+                Devido à alta procura de médicos e clínicas, a fila comum gratuita possui tempo de espera de 2 a 3 dias úteis. Ao ativar o <strong>Acesso VIP Prioritário</strong> por uma taxa simbólica, sua clínica salta direto para a <strong>mesa do nosso Diretor de Estratégia</strong>.
+              </p>
+
+              {/* Bloco de Preço & Oferta Irresistível */}
+              <div className="pt-1">
+                <div className="flex items-center justify-center gap-2 text-xs font-bold text-[#667066] uppercase tracking-wider mb-1">
+                  <span>De <span className="line-through text-red-400/80">R$ 197,00</span></span>
+                  <span>•</span>
+                  <span className="text-[#8CFF00] font-black">Taxa simbólica de prioridade:</span>
                 </div>
-
-                {/* Card de Detalhes da Reunião */}
-                <div className="rounded-xl border border-[#252A25] bg-[#050705] p-5 text-left space-y-3.5 max-w-md mx-auto shadow-inner">
-                  <div className="flex items-start gap-3">
-                    <Calendar className="h-5 w-5 text-[#8CFF00] shrink-0 mt-0.5" />
-                    <div>
-                      <span className="block text-[11px] font-bold uppercase tracking-wider text-[#667066]">
-                        Data e Horário
-                      </span>
-                      <span className="text-sm sm:text-base font-extrabold text-[#FFFFFF]">
-                        {confirmedDateDisplay}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3 pt-1 border-t border-[#252A25]">
-                    <Clock className="h-5 w-5 text-[#8CFF00] shrink-0 mt-0.5" />
-                    <div>
-                      <span className="block text-[11px] font-bold uppercase tracking-wider text-[#667066]">
-                        Formato & Duração
-                      </span>
-                      <span className="text-sm font-semibold text-[#F4F6F1]/90">
-                        Online via Google Meet • 45 minutos
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3 pt-1 border-t border-[#252A25]">
-                    <ShieldCheck className="h-5 w-5 text-[#8CFF00] shrink-0 mt-0.5" />
-                    <div>
-                      <span className="block text-[11px] font-bold uppercase tracking-wider text-[#667066]">
-                        Instruções de Acesso
-                      </span>
-                      <span className="text-xs text-[#F4F6F1]/80">
-                        Enviamos os detalhes e o link de acesso diretamente para o seu WhatsApp e E-mail.
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Botão de Ação */}
-                <div className="pt-2 max-w-md mx-auto">
-                  <button
-                    type="button"
-                    onClick={handleCloseModal}
-                    className="w-full inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#8CFF00] px-6 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all hover:bg-[#7AE000] cursor-pointer shadow-[0_0_20px_rgba(140,255,0,0.3)] hover:scale-[1.01]"
-                  >
-                    <span>Concluir</span>
-                  </button>
+                <div className="text-2xl sm:text-3xl font-black text-[#8CFF00] tracking-tight">
+                  R$ 19,90 <span className="text-xs sm:text-sm font-semibold text-[#F4F6F1]/70 tracking-normal">(pagamento único)</span>
                 </div>
               </div>
-            ) : (
-              /* ESTADO 2: SELEÇÃO DE DIA E HORÁRIO NATIVO */
-              <div className="space-y-4 text-left animate-fade-in">
-                
-                {/* Cabeçalho */}
-                <div className="text-center pr-6 sm:pr-0">
-                  <div className="inline-flex items-center gap-1.5 rounded-full bg-[#8CFF00]/10 border border-[#8CFF00]/30 px-3.5 py-1 text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-[#8CFF00] mb-2">
-                    <Calendar className="h-3.5 w-3.5 text-[#8CFF00]" />
-                    ETAPA FINAL • AGENDAMENTO DA REUNIÃO
-                  </div>
-                  <h3 className="text-xl sm:text-2xl font-black tracking-tight text-[#FFFFFF] leading-snug">
-                    Escolha o melhor dia e horário para a sua reunião
-                  </h3>
-                  <p className="mt-1 text-xs sm:text-sm text-[#F4F6F1]/80 max-w-lg mx-auto">
-                    Seus dados foram recebidos com sucesso. Agora, selecione um horário na agenda para realizarmos seu Diagnóstico Estratégico individual ao vivo.
-                  </p>
+
+              {/* BOTÃO PRINCIPAL (CTA MEGA AGRESSIVA) */}
+              <button
+                type="button"
+                onClick={handleGoToVipCheckout}
+                className="group relative w-full inline-flex flex-col sm:flex-row h-auto sm:h-[58px] items-center justify-center gap-2 rounded-xl bg-[#8CFF00] px-6 py-3.5 sm:py-0 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all hover:bg-[#7AE000] cursor-pointer shadow-[0_0_30px_rgba(140,255,0,0.4)] hover:shadow-[0_0_40px_rgba(140,255,0,0.6)] hover:scale-[1.01]"
+              >
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 fill-[#050705] shrink-0" />
+                  <span>QUERO FURAR A FILA E ATIVAR MEU ACESSO VIP</span>
+                  <ArrowRight className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-1" />
                 </div>
+              </button>
 
-                {/* Carrossel de Dias */}
-                <div className="pt-2">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#8CFF00] flex items-center gap-1.5">
-                      <Calendar className="h-3.5 w-3.5" />
-                      1. Selecione a data
-                    </span>
-                    <span className="text-[10px] text-[#667066]">
-                      Horários de Brasília (America/São Paulo)
-                    </span>
-                  </div>
-
-                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-[#252A25] scrollbar-track-transparent">
-                    {availableDays.map(day => {
-                      const isSelected = selectedDate === day.dateKey;
-                      return (
-                        <button
-                          key={day.dateKey}
-                          type="button"
-                          onClick={() => {
-                            setSelectedDate(day.dateKey);
-                            setSelectedTime("");
-                          }}
-                          className={`flex-shrink-0 flex flex-col items-center justify-center w-[78px] sm:w-[86px] py-2.5 px-2 rounded-xl border transition-all cursor-pointer ${
-                            isSelected
-                              ? "border-[#8CFF00] bg-[#8CFF00]/15 text-[#FFFFFF] shadow-[0_0_15px_rgba(140,255,0,0.25)] ring-1 ring-[#8CFF00]"
-                              : "border-[#252A25] bg-[#121612] text-[#F4F6F1]/70 hover:border-[#8CFF00]/50 hover:bg-[#181E18]"
-                          }`}
-                        >
-                          <span className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-wider ${
-                            isSelected ? "text-[#8CFF00]" : "text-[#667066]"
-                          }`}>
-                            {day.label}
-                          </span>
-                          <span className="text-base sm:text-lg font-black text-[#FFFFFF]">
-                            {day.dayNumber}
-                          </span>
-                          <span className="text-[10px] uppercase font-bold text-[#667066]">
-                            {day.monthName}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Grade de Horários */}
-                <div className="pt-2 border-t border-[#252A25]">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#8CFF00] flex items-center gap-1.5">
-                      <Clock className="h-3.5 w-3.5" />
-                      2. Selecione o horário (duração de 45 min)
-                    </span>
-                    {isLoadingSlots && (
-                      <span className="text-[10px] text-[#8CFF00] flex items-center gap-1">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Verificando disponibilidade...
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="space-y-3.5 max-h-[36vh] overflow-y-auto pr-1">
-                    {/* Turno Manhã (08h às 12h) */}
-                    <div>
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-[#667066] mb-2 flex items-center gap-1.5">
-                        <span>☀️ MANHÃ (08:00 às 12:00)</span>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        {currentSlots.morning.map(slot => {
-                          const isSelected = selectedTime === slot.time;
-                          return (
-                            <button
-                              key={`morning_${slot.time}`}
-                              type="button"
-                              disabled={!slot.isAvailable}
-                              onClick={() => setSelectedTime(slot.time)}
-                              className={`h-11 rounded-lg border text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all ${
-                                !slot.isAvailable
-                                  ? "border-[#252A25]/40 bg-[#0E120E]/50 text-[#667066]/50 line-through cursor-not-allowed"
-                                  : isSelected
-                                  ? "border-[#8CFF00] bg-[#8CFF00] text-[#050705] font-black shadow-[0_0_15px_rgba(140,255,0,0.4)] cursor-pointer"
-                                  : "border-[#252A25] bg-[#121612] text-[#FFFFFF] hover:border-[#8CFF00]/60 hover:bg-[#181E18] cursor-pointer"
-                              }`}
-                            >
-                              <span>{slot.time}</span>
-                              {!slot.isAvailable && (
-                                <span className="text-[9px] font-normal no-underline ml-0.5">
-                                  ({slot.reason === "passado" ? "Passado" : "Ocupado"})
-                                </span>
-                              )}
-                              {isSelected && <Check className="h-3.5 w-3.5 stroke-[3]" />}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Turno Tarde (14h às 19h - Apenas dias úteis) */}
-                    <div>
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-[#667066] mb-2 flex items-center gap-1.5">
-                        <span>🌤️ TARDE (14:00 às 19:00)</span>
-                      </div>
-                      {currentSlots.currentDay?.dayOfWeek === 6 ? (
-                        <div className="rounded-lg border border-[#252A25] bg-[#121612]/60 p-3 text-center text-xs text-[#667066]">
-                          Atendimento aos sábados é exclusivo no período da manhã (08h às 12h). Para reuniões à tarde, selecione um dia útil.
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                          {currentSlots.afternoon.map(slot => {
-                            const isSelected = selectedTime === slot.time;
-                            return (
-                              <button
-                                key={`afternoon_${slot.time}`}
-                                type="button"
-                                disabled={!slot.isAvailable}
-                                onClick={() => setSelectedTime(slot.time)}
-                                className={`h-11 rounded-lg border text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all ${
-                                  !slot.isAvailable
-                                    ? "border-[#252A25]/40 bg-[#0E120E]/50 text-[#667066]/50 line-through cursor-not-allowed"
-                                    : isSelected
-                                    ? "border-[#8CFF00] bg-[#8CFF00] text-[#050705] font-black shadow-[0_0_15px_rgba(140,255,0,0.4)] cursor-pointer"
-                                    : "border-[#252A25] bg-[#121612] text-[#FFFFFF] hover:border-[#8CFF00]/60 hover:bg-[#181E18] cursor-pointer"
-                                }`}
-                              >
-                                <span>{slot.time}</span>
-                                {!slot.isAvailable && (
-                                  <span className="text-[9px] font-normal no-underline ml-0.5">
-                                    ({slot.reason === "passado" ? "Passado" : "Ocupado"})
-                                  </span>
-                                )}
-                                {isSelected && <Check className="h-3.5 w-3.5 stroke-[3]" />}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Rodapé de Confirmação */}
-                <div className="pt-3 border-t border-[#252A25] space-y-2.5">
-                  {selectedTime ? (
-                    <div className="rounded-lg bg-[#8CFF00]/10 border border-[#8CFF00]/30 p-2.5 text-center text-xs sm:text-sm text-[#FFFFFF] font-bold animate-fade-in flex items-center justify-center gap-2">
-                      <Clock className="h-4 w-4 text-[#8CFF00] shrink-0" />
-                      <span>
-                        Horário selecionado:{" "}
-                        <strong className="text-[#8CFF00] font-black">
-                          {currentSlots.currentDay?.fullFormatted} às {selectedTime}
-                        </strong>
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="rounded-lg bg-[#121612] border border-[#252A25] p-2.5 text-center text-xs text-[#667066]">
-                      Clique em um dos horários disponíveis acima para prosseguir com a confirmação.
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    disabled={!selectedTime || isConfirmingSchedule}
-                    onClick={handleConfirmSchedule}
-                    className="w-full inline-flex h-[52px] items-center justify-center gap-2 rounded-xl bg-[#8CFF00] px-6 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all hover:bg-[#7AE000] cursor-pointer shadow-[0_0_25px_rgba(140,255,0,0.35)] hover:scale-[1.01] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:bg-[#8CFF00]"
-                  >
-                    {isConfirmingSchedule ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Confirmando e reservando horário...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>CONFIRMAR MEU AGENDAMENTO</span>
-                        <ArrowRight className="h-4 w-4" />
-                      </>
-                    )}
-                  </button>
-
-                  <div className="flex items-center justify-center gap-2 text-[10px] text-[#667066] font-medium text-center">
-                    <ShieldCheck className="h-3.5 w-3.5 text-[#8CFF00]" />
-                    <span>Reunião individual ao vivo via Google Meet • Sem custos adicionais</span>
-                  </div>
-                </div>
-
+              <div className="flex items-center justify-center gap-3 text-[10px] text-[#667066] font-semibold uppercase tracking-wider">
+                <span>🔒 Checkout Seguro Kiwify</span>
+                <span>•</span>
+                <span>⚡ Acesso Imediato</span>
+                <span>•</span>
+                <span>💳 Pix ou Cartão</span>
               </div>
-            )}
+
+              {/* Opção Secundária Discreta (Esperar na fila comum) */}
+              <div className="pt-1 pb-1">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="text-[11px] sm:text-xs text-[#667066] hover:text-[#F4F6F1] underline transition-colors cursor-pointer"
+                >
+                  Não quero atendimento prioritário, prefiro aguardar até 72h na fila comum.
+                </button>
+              </div>
+
+            </div>
 
           </div>
         </div>
@@ -1280,6 +949,19 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
                 <option>Entre R$ 3 mil e R$ 7 mil</option>
                 <option>Entre R$ 7 mil e R$ 15 mil</option>
                 <option>Acima de R$ 15 mil</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-[#050705] mb-1">
+                Prazo Estimado para Iniciar *
+              </label>
+              <select required value={prazo} onChange={e => setPrazo(e.target.value)} className={inputCls}>
+                <option value="" disabled>Selecione um prazo estimado</option>
+                <option value="Quero iniciar agora">Quero iniciar agora</option>
+                <option value="Nos próximos 30 dias">Nos próximos 30 dias</option>
+                <option value="Nos próximos 60 a 90 dias">Nos próximos 60 a 90 dias</option>
+                <option value="Estou pesquisando possibilidades">Estou pesquisando possibilidades</option>
               </select>
             </div>
 
