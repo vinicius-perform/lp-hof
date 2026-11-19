@@ -475,24 +475,18 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     setIsSubmitting(true);
     setLeadName(name);
 
-    // Classificação estrita pelo faturamento (Coluna L e Meta Pixel):
-    // Menos de 35: D
-    // 35 a 50: C
-    // 50 a 100: B
-    // Acima de 100: A
-    let leadClass: "A" | "B" | "C" | "D" = "D";
-    const fatLower = faturamento.toLowerCase();
-    if (fatLower.includes("menos de") || fatLower.includes("< 35") || fatLower.includes("não atinjo") || fatLower.includes("nao atinjo")) {
-      leadClass = "D";
-    } else if (fatLower.includes("acima de 100") || fatLower.includes("> 100") || fatLower.includes("mais de 100")) {
-      leadClass = "A";
-    } else if (fatLower.includes("50") && fatLower.includes("100")) {
-      leadClass = "B";
-    } else if (fatLower.includes("35") && fatLower.includes("50")) {
-      leadClass = "C";
-    } else {
-      leadClass = "D";
-    }
+    const LEAD_CLASS_BY_FATURAMENTO: Record<string, "A" | "B" | "C" | "D"> = {
+      "Faturo menos de R$ 35 mil": "D",
+      "Faturo de R$ 35 mil a R$ 50 mil": "C",
+      "Faturo de R$ 50 mil a R$ 100 mil": "B",
+      "Faturo acima de R$ 100 mil": "A",
+    };
+    const leadClass: "A" | "B" | "C" | "D" = LEAD_CLASS_BY_FATURAMENTO[faturamento] ?? "D";
+
+    // Valor relativo de cada tipo de lead para a Meta (não é custo nem lance)
+    const LEAD_VALUE: Record<"A" | "B" | "C" | "D", number> = { A: 600, B: 300, C: 100, D: 1 };
+    const leadValue = LEAD_VALUE[leadClass];
+    const eventTime = Math.floor(Date.now() / 1000);
 
     // Cálculo de pontuação (Coluna K)
     let score = 0;
@@ -533,7 +527,6 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
       crm_uf: crmUf.toUpperCase(),
       clinicInstagram: instagram,
       clinicName: instagram,
-      objective: prazo,
       revenue: faturamento,
       traffic: investimento,
       score: score,
@@ -554,6 +547,11 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
       lead_type: leadClass,
 
       form_used: formId,
+
+      lead_value: leadValue,
+      event_time: eventTime,
+      event_source_url: typeof window !== "undefined" ? window.location.href : "",
+      client_user_agent: typeof navigator !== "undefined" ? navigator.userAgent : "",
 
       // Parâmetros Meta Conversions API (CAPI)
       fbc: fbcCookie,
@@ -610,37 +608,46 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
       if (typeof window !== "undefined") {
         const win = window as any;
         if (typeof win.fbq === "function") {
-          // Evento padrão Lead
+          // Evento padrão Lead (com valor)
           win.fbq("track", "Lead", {
             content_name: "Diagnostico Estrategico FA",
             currency: "BRL",
+            value: leadValue,
             lead_class: leadClass
           }, { eventID: externalId });
 
-          // Evento específico por faixa: "Lead A", "Lead B", "Lead C" ou "Lead D"
-          const leadCustomEvent = `Lead ${leadClass}`;
-          win.fbq("trackCustom", leadCustomEvent, {
+          // Evento por faixa: "Lead A" | "Lead B" | "Lead C" | "Lead D"
+          win.fbq("trackCustom", `Lead ${leadClass}`, {
             content_name: "Diagnostico Estrategico FA",
+            currency: "BRL",
+            value: leadValue,
             lead_class: leadClass,
             faturamento: faturamento,
             form_used: formId
           }, { eventID: `${externalId}_${leadClass}` });
 
-          // Evento de qualificação Meta: "Super Lead" (Lead A) e "Lead Qualificado" (Lead B e C)
-          if (leadClass === "A") {
-            win.fbq("trackCustom", "Super Lead", {
-              content_name: "Diagnostico Estrategico FA",
-              lead_class: "A",
-              faturamento: faturamento,
-              form_used: formId
-            }, { eventID: `${externalId}_super_lead` });
-          } else if (leadClass === "B" || leadClass === "C") {
+          // Lead Qualificado agora inclui A, B e C
+          if (leadClass === "A" || leadClass === "B" || leadClass === "C") {
             win.fbq("trackCustom", "Lead Qualificado", {
               content_name: "Diagnostico Estrategico FA",
+              currency: "BRL",
+              value: leadValue,
               lead_class: leadClass,
               faturamento: faturamento,
               form_used: formId
             }, { eventID: `${externalId}_lead_qualificado` });
+          }
+
+          // Super Lead continua só para A
+          if (leadClass === "A") {
+            win.fbq("trackCustom", "Super Lead", {
+              content_name: "Diagnostico Estrategico FA",
+              currency: "BRL",
+              value: leadValue,
+              lead_class: "A",
+              faturamento: faturamento,
+              form_used: formId
+            }, { eventID: `${externalId}_super_lead` });
           }
 
           win.fbq("trackCustom", "LeadForm", {
@@ -656,7 +663,8 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
             lead_class: leadClass,
             custom_event: `Lead ${leadClass}`,
             qualification_status: qualName,
-            form_used: formId
+            form_used: formId,
+            value: leadValue
           });
           if (leadClass === "A") {
             win.dataLayer.push({
@@ -664,7 +672,8 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
               lead_class: "A",
               form_used: formId
             });
-          } else if (leadClass === "B" || leadClass === "C") {
+          }
+          if (leadClass === "A" || leadClass === "B" || leadClass === "C") {
             win.dataLayer.push({
               event: "lead_qualificado",
               lead_class: leadClass,
