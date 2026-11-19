@@ -49,7 +49,7 @@ const CASE_STUDIES: CaseStudy[] = [
     name: "Drª Marcela",
     city: "SÃO PAULO/SP",
     specialty: "Dermatologia Estética",
-    videoUrl: "https://fazendoacontecer.site/wp-content/uploads/2026/01/dep-dramarcela-1.webm",
+    videoUrl: "/videos/dep-dramarcela.webm",
     thumbnail: "/thumb marcela.webp",
     headline: (
       <>
@@ -73,7 +73,7 @@ const CASE_STUDIES: CaseStudy[] = [
     name: "Dr. Pedro Lima",
     city: "VILA VELHA/ES",
     specialty: "Harmonização Facial & Corporal",
-    videoUrl: "https://fazendoacontecer.site/wp-content/uploads/2026/07/uri_ifs___V_MO7-PeBSuqG1Oeps5YgIKtnJW3-9mhF2JQC4TC9nHHU.webm",
+    videoUrl: "/videos/dep-drpedro.webm",
     thumbnail: "/thumb dr pedro.webp",
     headline: (
       <>
@@ -97,7 +97,7 @@ const CASE_STUDIES: CaseStudy[] = [
     name: "Dr. Cristiano",
     city: "BRASÍLIA/DF",
     specialty: "Cirurgia Plástica & Estética Avançada",
-    videoUrl: "https://fazendoacontecer.site/wp-content/uploads/2026/07/uri_ifs___V_015JtsY5elTU0ZxaDbcJI6sQBqUYryenRf0yFICm7Gw.webm",
+    videoUrl: "/videos/dep-drcris.webm",
     thumbnail: "/thumb cris.webp",
     headline: (
       <>
@@ -1056,7 +1056,7 @@ function CaseDraSamaraSection() {
           <div className="lg:col-span-5 flex flex-col items-center justify-center">
             <div className="relative w-full max-w-[300px] sm:max-w-[340px] aspect-[9/16] rounded-2xl border-2 border-[#252A25] bg-[#050705] overflow-hidden shadow-[0_0_35px_rgba(140,255,0,0.15)] group hover:border-[#8CFF00]/60 transition-all duration-300">
               <video
-                src="https://fazendoacontecer.site/wp-content/uploads/2026/09/dep-samara.webm"
+                src="/videos/dep-samara.webm"
                 controls
                 playsInline
                 preload="metadata"
