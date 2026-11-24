@@ -1049,10 +1049,11 @@ function CaseDraSamaraSection() {
               Ela usa o mesmo mecanismo de geração de demanda, vendas e dados que queremos implantar na sua clínica. As consultas pagam o tráfego, e a margem dos procedimentos fica com ela.
             </p>
 
-            <div className="pt-2 w-full sm:w-auto">
+            {/* Botão no Desktop (abaixo do texto) */}
+            <div className="pt-2 hidden lg:block">
               <button
                 onClick={scrollToForm}
-                className="w-full sm:w-auto inline-flex h-[54px] items-center justify-center gap-2.5 rounded-lg bg-[#8CFF00] hover:bg-[#7AE000] px-8 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all cursor-pointer shadow-lg hover:shadow-[0_0_25px_rgba(140,255,0,0.3)]"
+                className="inline-flex h-[54px] items-center justify-center gap-2.5 rounded-lg bg-[#8CFF00] hover:bg-[#7AE000] px-8 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all cursor-pointer shadow-lg hover:shadow-[0_0_25px_rgba(140,255,0,0.3)]"
               >
                 QUERO O MESMO MECANISMO NA MINHA CLÍNICA
                 <ArrowRight className="h-4.5 w-4.5" />
@@ -1074,6 +1075,17 @@ function CaseDraSamaraSection() {
             <span className="mt-3 text-xs font-bold text-[#667066] uppercase tracking-wider flex items-center gap-1.5">
               <Play className="h-3.5 w-3.5 fill-[#2E8B00] text-[#2E8B00]" /> Assista ao relato completo
             </span>
+
+            {/* Botão no Mobile (abaixo do vídeo) */}
+            <div className="mt-6 w-full max-w-[340px] lg:hidden">
+              <button
+                onClick={scrollToForm}
+                className="w-full inline-flex h-[54px] items-center justify-center gap-2.5 rounded-lg bg-[#8CFF00] hover:bg-[#7AE000] px-6 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all cursor-pointer shadow-lg hover:shadow-[0_0_25px_rgba(140,255,0,0.3)]"
+              >
+                QUERO O MESMO MECANISMO NA MINHA CLÍNICA
+                <ArrowRight className="h-4.5 w-4.5" />
+              </button>
+            </div>
           </div>
 
         </div>
@@ -1098,10 +1110,11 @@ function CaseDraSamaraSection() {
               Veja como o alinhamento comercial com vendedora dedicada e gestão ativa de tráfego transformou a rotina e a rentabilidade dos procedimentos.
             </p>
 
-            <div className="pt-2 w-full sm:w-auto">
+            {/* Botão no Desktop (abaixo do texto) */}
+            <div className="pt-2 hidden lg:block">
               <button
                 onClick={scrollToForm}
-                className="w-full sm:w-auto inline-flex h-[54px] items-center justify-center gap-2.5 rounded-lg bg-[#8CFF00] hover:bg-[#7AE000] px-8 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all cursor-pointer shadow-lg hover:shadow-[0_0_25px_rgba(140,255,0,0.3)]"
+                className="inline-flex h-[54px] items-center justify-center gap-2.5 rounded-lg bg-[#8CFF00] hover:bg-[#7AE000] px-8 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all cursor-pointer shadow-lg hover:shadow-[0_0_25px_rgba(140,255,0,0.3)]"
               >
                 QUERO O MESMO MECANISMO NA MINHA CLÍNICA
                 <ArrowRight className="h-4.5 w-4.5" />
@@ -1123,6 +1136,17 @@ function CaseDraSamaraSection() {
             <span className="mt-3 text-xs font-bold text-[#667066] uppercase tracking-wider flex items-center gap-1.5">
               <Play className="h-3.5 w-3.5 fill-[#2E8B00] text-[#2E8B00]" /> Assista ao relato completo
             </span>
+
+            {/* Botão no Mobile (abaixo do vídeo) */}
+            <div className="mt-6 w-full max-w-[340px] lg:hidden">
+              <button
+                onClick={scrollToForm}
+                className="w-full inline-flex h-[54px] items-center justify-center gap-2.5 rounded-lg bg-[#8CFF00] hover:bg-[#7AE000] px-6 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all cursor-pointer shadow-lg hover:shadow-[0_0_25px_rgba(140,255,0,0.3)]"
+              >
+                QUERO O MESMO MECANISMO NA MINHA CLÍNICA
+                <ArrowRight className="h-4.5 w-4.5" />
+              </button>
+            </div>
           </div>
 
         </div>
