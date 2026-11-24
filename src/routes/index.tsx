@@ -217,30 +217,33 @@ function Index() {
     <div className="min-h-screen bg-[#050705] text-[#F4F6F1] font-sans selection:bg-[#8CFF00] selection:text-[#050705]">
       
       {/* Barra de Qualificação Superior Vermelha Destacada */}
-      <div className="bg-[#E10614] border-b border-red-800 py-3 px-4 flex items-center justify-center gap-2.5 text-xs sm:text-sm font-black text-[#FFFFFF] uppercase tracking-widest shrink-0 text-center shadow-md">
-        <span className="h-2.5 w-2.5 rounded-full bg-[#FFFFFF] animate-pulse" />
-        <span>DIAGNÓSTICO GRATUITO PARA CLÍNICAS COM FATURAMENTO A PARTIR DE R$ 35 MIL/MÊS</span>
+      <div className="bg-[#E10614] border-b border-red-800 py-3 px-4 flex items-center justify-center gap-2 text-xs sm:text-sm font-black text-[#FFFFFF] uppercase tracking-widest shrink-0 text-center shadow-md">
+        <span className="h-2 w-2 rounded-full bg-[#FFFFFF] animate-pulse" />
+        <span>DIAGNÓSTICO GRATUITO PARA MÉDICAS DE HARMONIZAÇÃO FACIAL QUE FATURAM A PARTIR DE R$ 35 MIL/MÊS</span>
       </div>
 
       {/* 1. HERO COM FORMULÁRIO */}
       <Hero setLeadName={setLeadName} utms={utms} />
 
-      {/* CASE DE SUCESSO: DRA. SAMARA */}
+      {/* SEÇÃO 2 — PROVA PRINCIPAL (VÍDEO) */}
       <CaseDraSamaraSection />
 
-      {/* 2. PASSO A PASSO */}
+      {/* SEÇÃO 3 — O MECANISMO (seção nova, entra antes do passo a passo) */}
+      <MecanismoSection />
+
+      {/* SEÇÃO 4 — PASSO A PASSO */}
       <PassoAPassoSection />
 
       {/* 3. PROVA, NÃO APENAS PROMESSA (TODOS OS DEPOIMENTOS EM CARROSSEL) */}
       <CasePrincipalSection onOpenVideo={handleOpenVideo} />
 
-      {/* 4. ESTE DIAGNÓSTICO FAZ SENTIDO PARA SUA CLÍNICA SE: */}
+      {/* SEÇÃO 6 — PARA QUEM É */}
       <ParaQuemSection />
 
-      {/* 6. PERGUNTAS FREQUENTES */}
+      {/* SEÇÃO 7 — PERGUNTAS FREQUENTES */}
       <FaqCurtoSection />
 
-      {/* FORMULÁRIO FINAL E FOOTER */}
+      {/* SEÇÃO 8 — FORMULÁRIO FINAL E FOOTER */}
       <CtaFinalFormSection />
       <Footer />
 
@@ -274,16 +277,16 @@ function Hero({ setLeadName, utms }: HeroProps) {
           <div className="lg:col-span-7 flex flex-col text-left">
             <div>
               <span className="inline-flex items-center rounded-md bg-[#0B0E0B] border border-[#252A25] px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-[#8CFF00]">
-                DIAGNÓSTICO ESTRATÉGICO FA
+                EXCLUSIVO PARA ESPECIALISTAS EM HOF
               </span>
             </div>
 
             <h1 className="mt-4 text-[38px] sm:text-[46px] lg:text-[56px] font-black leading-[1.08] tracking-tight text-[#FFFFFF]">
-              <span className="text-[#8CFF00]">Assumimos esse risco:</span> Seu tráfego pago será pago pelo <span className="underline decoration-[#8CFF00] decoration-2 underline-offset-4">faturamento de consultas</span> e você terá mais margem nos procedimentos.
+              <span className="text-[#8CFF00]">Nós assumimos esse risco por você:</span> seu tráfego pago será pago pelo faturamento das <span className="underline decoration-[#FFFFFF] decoration-2 underline-offset-4">consultas</span> e você fica com a margem dos procedimentos.
             </h1>
 
             <p className="mt-4 text-[17px] sm:text-[19px] lg:text-[20px] leading-relaxed text-[#F4F6F1]/90 font-medium max-w-2xl">
-              Preencha o formulário e nossa equipe entrará em contato com você nos próximos 3 minutos.
+              Nós produzimos seu conteúdo, rodamos seu tráfego pago e colocamos nossa vendedora para levar a paciente até a sua agenda. Preencha o formulário e nosso time fala com você nos próximos 3 minutos.
             </p>
           </div>
 
@@ -476,8 +479,8 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
     setLeadName(name);
 
     const LEAD_CLASS_BY_FATURAMENTO: Record<string, "A" | "B" | "C" | "D"> = {
-      "Faturo menos de R$ 35 mil": "D",
-      "Faturo de R$ 35 mil a R$ 50 mil": "C",
+      "Faturo menos de R$ 20 mil": "D",
+      "Faturo de R$ 20 mil a R$ 50 mil": "C",
       "Faturo de R$ 50 mil a R$ 100 mil": "B",
       "Faturo acima de R$ 100 mil": "A",
     };
@@ -807,12 +810,12 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
       )}
       <div className="mb-4">
         <div className="flex items-center justify-between">
-          <span className="inline-flex items-center gap-1.5 rounded bg-[#050705] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#8CFF00]">
-            <Clock className="h-3 w-3" />
-            Leva cerca de 1 minuto
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-[#050705] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#8CFF00]">
+            <Zap className="h-3 w-3 fill-[#8CFF00] text-[#8CFF00]" />
+            03 VAGAS RESTANTES HOJE
           </span>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[#667066]">
-            Etapa {step} de 2
+          <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#667066]">
+            ETAPA {step} DE 2
           </span>
         </div>
       </div>
@@ -836,7 +839,7 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
               <input 
                 required 
                 type="text" 
-                placeholder="Ex: Dra. Juliana Souza" 
+                placeholder="Ex: Dra. Mariana Ramos" 
                 value={name}
                 onFocus={() => trackCustomEvent("FormStart", { form_id: formId })}
                 onChange={e => setName(e.target.value)}
@@ -846,12 +849,12 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
 
             <div>
               <label className="block text-[11px] font-extrabold uppercase tracking-wider text-[#050705] mb-1">
-                E-mail Principal *
+                E-mail Comercial *
               </label>
               <input 
                 required 
                 type="email" 
-                placeholder="Ex: juliana@clinica.com.br" 
+                placeholder="Ex: seu.melhor@email.com" 
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 className={inputCls} 
@@ -865,7 +868,7 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
               <input 
                 required 
                 type="tel" 
-                placeholder="Ex: (11) 99999-9999" 
+                placeholder="Ex: (11) 98765-4321" 
                 value={phone}
                 onChange={handlePhoneChange}
                 className={inputCls} 
@@ -940,8 +943,8 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
               </label>
               <select required value={faturamento} onChange={e => setFaturamento(e.target.value)} className={inputCls}>
                 <option value="" disabled>Selecione a faixa de faturamento</option>
-                <option value="Faturo menos de R$ 35 mil">Faturo menos de R$ 35 mil</option>
-                <option value="Faturo de R$ 35 mil a R$ 50 mil">Faturo de R$ 35 mil a R$ 50 mil</option>
+                <option value="Faturo menos de R$ 20 mil">Faturo menos de R$ 20 mil</option>
+                <option value="Faturo de R$ 20 mil a R$ 50 mil">Faturo de R$ 20 mil a R$ 50 mil</option>
                 <option value="Faturo de R$ 50 mil a R$ 100 mil">Faturo de R$ 50 mil a R$ 100 mil</option>
                 <option value="Faturo acima de R$ 100 mil">Faturo acima de R$ 100 mil</option>
               </select>
@@ -1043,11 +1046,11 @@ function CaseDraSamaraSection() {
             </span>
             
             <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-[40px] font-black tracking-tight text-[#FFFFFF] leading-[1.18]">
-              Como a Dra. Samara ultrapassou <span className="text-[#8CFF00]">R$ 200 mil</span> de faturamento no primeiro mês de parceria com a FA
+              Como a Dra. Samara, médica de harmonização facial, fatura mais de <span className="text-[#8CFF00]">R$ 200 mil</span> todos os meses com a FA
             </h2>
 
             <p className="text-sm sm:text-base lg:text-lg text-[#F4F6F1]/80 leading-relaxed font-medium">
-              Veja como o alinhamento entre tráfego e vendas fez o investimento se pagar apenas com o volume de novas consultas.
+              Ela usa o mesmo mecanismo de geração de demanda, vendas e dados que queremos implantar na sua clínica. As consultas pagam o tráfego, e a margem dos procedimentos fica com ela.
             </p>
 
             <div className="pt-2 w-full sm:w-auto">
@@ -1055,7 +1058,7 @@ function CaseDraSamaraSection() {
                 onClick={scrollToForm}
                 className="w-full sm:w-auto inline-flex h-[54px] items-center justify-center gap-2.5 rounded-lg bg-[#8CFF00] px-8 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all hover:bg-[#68BF00] cursor-pointer shadow-lg hover:shadow-[0_0_25px_rgba(140,255,0,0.4)]"
               >
-                QUERO IDENTIFICAR O POTENCIAL DA MINHA CLÍNICA
+                QUERO O MESMO MECANISMO NA MINHA CLÍNICA
                 <ArrowRight className="h-4.5 w-4.5" />
               </button>
             </div>
@@ -1083,23 +1086,91 @@ function CaseDraSamaraSection() {
   );
 }
 
-// SEÇÃO 2: PASSO A PASSO
+// SEÇÃO 3 — O MECANISMO (NOVA)
+function MecanismoSection() {
+  const pilares = [
+    {
+      num: "01",
+      title: "Conteúdo",
+      desc: "produzimos o conteúdo que gera desejo e autoridade para os seus procedimentos de HOF."
+    },
+    {
+      num: "02",
+      title: "Tráfego pago",
+      desc: "rodamos seus anúncios para atrair pacientes qualificadas todos os dias."
+    },
+    {
+      num: "03",
+      title: "Vendedora",
+      desc: "colocamos nossa vendedora, dentro da nossa estrutura, para atender, qualificar e agendar."
+    },
+    {
+      num: "04",
+      title: "Dados",
+      desc: "acompanhamos cada real investido até virar consulta e procedimento."
+    }
+  ];
+
+  return (
+    <section className="bg-[#050705] border-b border-[#252A25] py-16 lg:py-20 text-[#F4F6F1] relative overflow-hidden">
+      <div className="mx-auto max-w-6xl px-5 sm:px-6">
+        <div className="text-center mb-12 max-w-3xl mx-auto">
+          <span className="inline-flex items-center rounded-md bg-[#0B0E0B] border border-[#252A25] px-3.5 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#8CFF00] shadow-sm">
+            O QUE FAZEMOS POR VOCÊ
+          </span>
+          <h2 className="mt-4 text-3xl sm:text-4xl lg:text-[42px] font-black tracking-tight text-[#FFFFFF] leading-tight">
+            Você atende. A gente cuida de todo o resto.
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {pilares.map((p, idx) => (
+            <div 
+              key={idx} 
+              className="rounded-2xl border border-[#252A25] bg-[#0A0D0A] p-6 shadow-lg hover:border-[#8CFF00]/50 transition-all flex flex-col justify-between group"
+            >
+              <div>
+                <span className="text-3xl font-black font-mono text-[#8CFF00] block mb-3 group-hover:scale-105 transition-transform">
+                  {p.num}
+                </span>
+                <h3 className="text-lg font-black text-[#FFFFFF] mb-2">
+                  {p.title}
+                </h3>
+                <p className="text-sm text-[#F4F6F1]/80 leading-relaxed font-medium">
+                  {p.desc}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-10 rounded-2xl border border-[#8CFF00]/30 bg-[#0B1308] p-6 sm:p-7 text-center max-w-3xl mx-auto shadow-[0_0_30px_rgba(140,255,0,0.08)]">
+          <p className="text-sm sm:text-base text-[#F4F6F1] font-semibold leading-relaxed">
+            Se as consultas pagam o tráfego, dá para escalar o investimento para <span className="text-[#8CFF00] font-black">R$ 20 mil, R$ 30 mil por mês</span> e construir uma carteira grande de pacientes.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// SEÇÃO 4: PASSO A PASSO
 function PassoAPassoSection() {
   const etapas = [
     {
       num: "01",
       title: "1. Você preenche",
-      desc: "Compartilha rapidamente informações sobre o momento da clínica."
+      desc: "conta rapidamente o momento atual da sua clínica de harmonização."
     },
     {
       num: "02",
       title: "2. A FA analisa",
-      desc: "Nossa equipe avalia os dados e identifica os principais pontos de atenção."
+      desc: "nosso time avalia seus números e identifica onde estão os gargalos de demanda e de vendas."
     },
     {
       num: "03",
       title: "3. Você recebe a análise",
-      desc: "Em uma conversa estratégica, mostramos os gargalos e o próximo passo recomendado."
+      desc: "numa conversa estratégica, mostramos como o mecanismo funcionaria na sua clínica."
     }
   ];
 
@@ -1111,7 +1182,7 @@ function PassoAPassoSection() {
           PASSO A PASSO
         </span>
         <h2 className="mt-3.5 text-2xl sm:text-3xl font-black tracking-tight text-[#050705]">
-          Como funciona a solicitação do diagnóstico
+          Como funciona o diagnóstico
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8 text-left">
@@ -1229,14 +1300,14 @@ function CasePrincipalSection({ onOpenVideo }: CasePrincipalSectionProps) {
   );
 }
 
-// SEÇÃO 4: ESTE DIAGNÓSTICO FAZ SENTIDO PARA SUA CLÍNICA SE:
+// SEÇÃO 6: PARA QUEM É
 function ParaQuemSection() {
   const items = [
+    "é médica e trabalha com harmonização facial;",
     "fatura a partir de R$ 35 mil por mês;",
-    "possui procedimentos ou serviços validados;",
-    "quer aumentar agendamentos ou conversão;",
-    "possui capacidade para atender novos pacientes;",
-    "deseja crescer sem depender apenas de indicação."
+    "já tem procedimentos validados (toxina, preenchedores, bioestimuladores etc.);",
+    "tem agenda disponível para novas pacientes;",
+    "quer parar de depender só de indicação e do próprio Instagram."
   ];
 
   return (
@@ -1245,7 +1316,7 @@ function ParaQuemSection() {
         
         <div className="rounded-2xl border border-[#DDE2D9] bg-[#FFFFFF] p-7 sm:p-9 shadow-sm">
           <h2 className="text-xl sm:text-2xl font-black text-[#050705] tracking-tight">
-            Este diagnóstico faz sentido para sua clínica se:
+            Este diagnóstico é para você se:
           </h2>
 
           <div className="mt-6 space-y-3">
@@ -1261,7 +1332,7 @@ function ParaQuemSection() {
 
           <div className="mt-6 pt-5 border-t border-[#DDE2D9]">
             <p className="text-xs text-[#667066] font-medium">
-              * Não é indicado para operações que ainda não possuem um serviço validado ou capacidade mínima de investimento.
+              * Não é indicado para quem ainda não tem procedimentos validados ou capacidade mínima de investimento.
             </p>
           </div>
 
@@ -1285,23 +1356,23 @@ function FaqCurtoSection() {
   const faqs = [
     {
       q: "O diagnóstico é realmente gratuito?",
-      a: "Sim. A análise inicial não possui custo nem obrigação de contratação."
+      a: "Sim. A análise não tem custo e não obriga você a contratar nada."
     },
     {
-      q: "Preciso contratar a FA depois?",
-      a: "Não. O diagnóstico ajuda a entender os gargalos e o próximo passo recomendado, mas a decisão de contratar é sua."
+      q: "Como assim o tráfego é pago pelas consultas?",
+      a: "Estruturamos a operação para que o faturamento das consultas cubra o investimento em anúncios. A margem dos procedimentos fica com você."
     },
     {
-      q: "A FA atende clínicas que faturam R$ 35 mil?",
-      a: "Sim. Existem diferentes modelos de entrega de acordo com o estágio da operação."
+      q: "Vocês fazem o conteúdo e o atendimento também?",
+      a: "Sim. Produzimos seu conteúdo, rodamos seu tráfego e colocamos nossa vendedora para atender e agendar suas pacientes."
     },
     {
-      q: "Preciso já investir em tráfego?",
-      a: "Não obrigatoriamente. A análise considera o momento atual e a capacidade de investimento da clínica."
+      q: "Atendem médicas que faturam menos de R$ 35 mil?",
+      a: "No momento, o diagnóstico é para clínicas que faturam a partir de R$ 35 mil por mês."
     },
     {
-      q: "O que acontece depois do preenchimento?",
-      a: "Nossa equipe analisa as informações e entra em contato para aprofundar o diagnóstico."
+      q: "O que acontece depois que eu preencho?",
+      a: "Nosso time fala com você pelo WhatsApp em poucos minutos para agendar a conversa estratégica."
     }
   ];
 
@@ -1366,10 +1437,10 @@ function CtaFinalFormSection() {
           PRÓXIMO PASSO
         </span>
         <h2 className="mt-3.5 text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-[#FFFFFF]">
-          Antes de investir mais, descubra o que precisa ser corrigido.
+          Deixe que a gente assuma o risco. Você só precisa atender.
         </h2>
         <p className="mt-3 text-sm sm:text-base text-[#667066] font-medium leading-relaxed max-w-xl mx-auto">
-          Solicite uma análise estratégica gratuita do momento atual da sua clínica.
+          Preencha o formulário e conheça o mecanismo que coloca pacientes de harmonização facial na sua agenda todos os meses.
         </p>
 
         <div className="mt-8">
@@ -1377,13 +1448,13 @@ function CtaFinalFormSection() {
             onClick={scrollToForm}
             className="inline-flex h-[56px] w-full sm:w-auto items-center justify-center gap-2.5 rounded-xl bg-[#8CFF00] px-9 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] hover:bg-[#68BF00] transition-all cursor-pointer shadow-lg hover:scale-[1.02]"
           >
-            PREENCHER FORMULÁRIO DE ANÁLISE
+            PREENCHER FORMULÁRIO
             <ArrowRight className="h-5 w-5" />
           </button>
         </div>
 
         <p className="mt-5 text-xs font-semibold text-[#667066]">
-          Gratuito, sem compromisso e destinado a clínicas com faturamento a partir de R$ 35 mil mensais.
+          Gratuito, sem compromisso e exclusivo para médicas de HOF que faturam a partir de R$ 35 mil/mês.
         </p>
 
       </div>
@@ -1420,10 +1491,10 @@ function Footer() {
 
       <div className="mx-auto max-w-7xl px-5 sm:px-6 py-6 text-center text-[10px] text-[#667066] space-y-2 font-medium">
         <p className="max-w-4xl mx-auto leading-relaxed">
-          Os resultados apresentados referem-se a casos específicos e não representam garantia de desempenho. Os resultados podem variar conforme mercado, investimento, oferta, equipe, atendimento e execução.
+          Os resultados mostrados são de casos específicos e não garantem desempenho. Eles variam conforme o mercado, o investimento, a oferta, a equipe, o atendimento e a execução.
         </p>
         <p>
-          Copyright © 2026 Fazendo Acontecer — Todos os direitos reservados.
+          Copyright © 2026 Fazendo Acontecer. Todos os direitos reservados.
         </p>
       </div>
     </footer>
