@@ -234,9 +234,6 @@ function Index() {
       {/* SEÇÃO 4 — PASSO A PASSO */}
       <PassoAPassoSection />
 
-      {/* 3. PROVA, NÃO APENAS PROMESSA (TODOS OS DEPOIMENTOS EM CARROSSEL) */}
-      <CasePrincipalSection onOpenVideo={handleOpenVideo} />
-
       {/* SEÇÃO 6 — PARA QUEM É */}
       <ParaQuemSection />
 
@@ -1247,102 +1244,6 @@ function PassoAPassoSection() {
         <p className="mt-6 text-xs text-[#667066] font-bold">
           * Sem obrigação de contratação.
         </p>
-
-      </div>
-    </section>
-  );
-}
-
-// SEÇÃO 3: PROVA, NÃO APENAS PROMESSA (TODOS OS DEPOIMENTOS EM CARROSSEL)
-interface CasePrincipalSectionProps {
-  onOpenVideo: (url: string) => void;
-}
-
-function CasePrincipalSection({ onOpenVideo }: CasePrincipalSectionProps) {
-  const carouselRef = useRef<HTMLDivElement>(null);
-
-  const scroll = (direction: "left" | "right") => {
-    if (carouselRef.current) {
-      const scrollAmount = direction === "left" ? -280 : 280;
-      carouselRef.current.scrollBy({ left: scrollAmount, behavior: "smooth" });
-    }
-  };
-
-  const scrollToForm = () => {
-    trackCustomEvent("MainCaseCTAClick");
-    const element = document.getElementById("hero-form-wrapper");
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth" });
-    }
-  };
-
-  return (
-    <section className="bg-[#050705] border-b border-[#252A25] py-12 lg:py-16 text-[#F4F6F1]">
-      <div className="mx-auto max-w-6xl px-5 sm:px-6">
-        
-        <div className="text-center mb-8 max-w-3xl mx-auto">
-          <span className="inline-flex items-center rounded-md bg-[#0B0E0B] border border-[#252A25] px-3.5 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#8CFF00]">
-            PROVA, NÃO APENAS PROMESSA
-          </span>
-          <h2 className="mt-3 text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-[#FFFFFF]">
-            Veja os resultados de quem já aplicou a estratégia
-          </h2>
-        </div>
-
-        {/* Carrossel de Vídeos */}
-        <div className="relative max-w-4xl mx-auto px-2 sm:px-10">
-          
-          <button
-            onClick={() => scroll("left")}
-            className="md:hidden absolute left-0 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-[#252A25] bg-[#0B0E0B]/90 text-[#FFFFFF] shadow-xl hover:border-[#8CFF00] hover:text-[#8CFF00] transition-all cursor-pointer backdrop-blur-sm"
-            aria-label="Anterior"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-
-          <div 
-            ref={carouselRef}
-            className="flex gap-4 sm:gap-6 overflow-x-auto scroll-smooth py-4 px-2 snap-x snap-mandatory justify-start md:justify-center items-center"
-            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-          >
-            {CASE_STUDIES.map((c) => (
-              <div 
-                key={c.id}
-                onClick={() => onOpenVideo(c.videoUrl)}
-                className="group relative shrink-0 aspect-[9/16] w-[200px] sm:w-[230px] md:w-[240px] rounded-2xl border border-[#252A25] bg-[#0B0E0B] overflow-hidden cursor-pointer shadow-xl hover:border-[#8CFF00] transition-all duration-300 snap-center"
-              >
-                <img 
-                  src={c.thumbnail} 
-                  alt="Depoimento em vídeo" 
-                  loading="lazy"
-                  decoding="async"
-                  width="240"
-                  height="426"
-                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-              </div>
-            ))}
-          </div>
-
-          <button
-            onClick={() => scroll("right")}
-            className="md:hidden absolute right-0 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-[#252A25] bg-[#0B0E0B]/90 text-[#FFFFFF] shadow-xl hover:border-[#8CFF00] hover:text-[#8CFF00] transition-all cursor-pointer backdrop-blur-sm"
-            aria-label="Próximo"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-
-        </div>
-
-        <div className="mt-8 text-center">
-          <button
-            onClick={scrollToForm}
-            className="inline-flex h-[52px] w-full sm:w-auto items-center justify-center gap-2 rounded-lg bg-[#8CFF00] px-7 text-xs font-black uppercase tracking-wider text-[#050705] hover:bg-[#68BF00] transition-all cursor-pointer shadow-md"
-          >
-            QUERO IDENTIFICAR O POTENCIAL DA MINHA CLÍNICA
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        </div>
 
       </div>
     </section>
