@@ -1021,7 +1021,7 @@ function MultistepFormCard({ setLeadName, utms, formId }: MultistepFormCardProps
   );
 }
 
-// SEÇÃO DE DESTAQUE: CASE DRA. SAMARA (ABAIXO DO HERO)
+// SEÇÃO DE DESTAQUE: CASE DRA. SAMARA (VÍDEOS DE DEPOIMENTO - SEÇÃO WHITE DUPLICADA)
 function CaseDraSamaraSection() {
   const scrollToForm = () => {
     trackCustomEvent("SamaraCaseCTAClick");
@@ -1032,31 +1032,30 @@ function CaseDraSamaraSection() {
   };
 
   return (
-    <section className="bg-[#080B08] border-b border-[#252A25] py-14 lg:py-20 text-[#F4F6F1] relative overflow-hidden">
-      {/* Luz ambiente sutil de fundo */}
-      <div className="absolute top-1/2 left-1/4 -translate-y-1/2 w-[500px] h-[500px] bg-[#8CFF00]/5 rounded-full blur-[140px] pointer-events-none" />
-
-      <div className="relative z-10 mx-auto max-w-6xl px-5 sm:px-6">
+    <section className="bg-[#FFFFFF] border-b border-[#DDE2D9] py-16 lg:py-24 text-[#050705] relative overflow-hidden">
+      <div className="relative z-10 mx-auto max-w-6xl px-5 sm:px-6 space-y-16 lg:space-y-24">
+        
+        {/* DEPOIMENTO 1 — DRA. SAMARA */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
           
           {/* Lado Esquerdo: Textos e Chamada para Ação */}
           <div className="lg:col-span-7 flex flex-col items-start text-left space-y-6">
-            <span className="inline-flex items-center gap-1.5 rounded-md bg-[#0B0E0B] border border-[#252A25] px-3.5 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#8CFF00] shadow-sm">
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-[#F4F6F1] border border-[#DDE2D9] px-3.5 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#050705] shadow-sm">
               PROVA, NÃO APENAS PROMESSA
             </span>
             
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-[40px] font-black tracking-tight text-[#FFFFFF] leading-[1.18]">
-              Como a Dra. Samara, médica de harmonização facial, fatura mais de <span className="text-[#8CFF00]">R$ 200 mil</span> todos os meses com a FA
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-[40px] font-black tracking-tight text-[#050705] leading-[1.18]">
+              Como a Dra. Samara, médica de harmonização facial, fatura mais de <span className="text-[#2E8B00]">R$ 200 mil</span> todos os meses com a FA
             </h2>
 
-            <p className="text-sm sm:text-base lg:text-lg text-[#F4F6F1]/80 leading-relaxed font-medium">
+            <p className="text-sm sm:text-base lg:text-lg text-[#4A554A] leading-relaxed font-medium">
               Ela usa o mesmo mecanismo de geração de demanda, vendas e dados que queremos implantar na sua clínica. As consultas pagam o tráfego, e a margem dos procedimentos fica com ela.
             </p>
 
             <div className="pt-2 w-full sm:w-auto">
               <button
                 onClick={scrollToForm}
-                className="w-full sm:w-auto inline-flex h-[54px] items-center justify-center gap-2.5 rounded-lg bg-[#8CFF00] px-8 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all hover:bg-[#68BF00] cursor-pointer shadow-lg hover:shadow-[0_0_25px_rgba(140,255,0,0.4)]"
+                className="w-full sm:w-auto inline-flex h-[54px] items-center justify-center gap-2.5 rounded-lg bg-[#8CFF00] hover:bg-[#7AE000] px-8 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all cursor-pointer shadow-lg hover:shadow-[0_0_25px_rgba(140,255,0,0.3)]"
               >
                 QUERO O MESMO MECANISMO NA MINHA CLÍNICA
                 <ArrowRight className="h-4.5 w-4.5" />
@@ -1064,9 +1063,9 @@ function CaseDraSamaraSection() {
             </div>
           </div>
 
-          {/* Lado Direito: Vídeo do Depoimento */}
+          {/* Lado Direito: Vídeo do Depoimento 1 */}
           <div className="lg:col-span-5 flex flex-col items-center justify-center">
-            <div className="relative w-full max-w-[300px] sm:max-w-[340px] aspect-[9/16] rounded-2xl border-2 border-[#252A25] bg-[#050705] overflow-hidden shadow-[0_0_35px_rgba(140,255,0,0.15)] group hover:border-[#8CFF00]/60 transition-all duration-300">
+            <div className="relative w-full max-w-[300px] sm:max-w-[340px] aspect-[9/16] rounded-2xl border-2 border-[#DDE2D9] bg-[#050705] overflow-hidden shadow-2xl group hover:border-[#8CFF00] transition-all duration-300">
               <video
                 src="/videos/dep-samara.webm"
                 controls
@@ -1076,11 +1075,61 @@ function CaseDraSamaraSection() {
               />
             </div>
             <span className="mt-3 text-xs font-bold text-[#667066] uppercase tracking-wider flex items-center gap-1.5">
-              <Play className="h-3.5 w-3.5 fill-[#8CFF00] text-[#8CFF00]" /> Assista ao relato completo
+              <Play className="h-3.5 w-3.5 fill-[#2E8B00] text-[#2E8B00]" /> Assista ao relato completo
             </span>
           </div>
 
         </div>
+
+        {/* DIVISOR SUTIL ENTRE OS DEPOIMENTOS */}
+        <div className="border-t border-[#DDE2D9]" />
+
+        {/* DEPOIMENTO 2 — SEGUNDO DEPOIMENTO (DUPLICADO PARA VOCÊ PERSONALIZAR) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
+          
+          {/* Lado Esquerdo: Textos e Chamada para Ação */}
+          <div className="lg:col-span-7 flex flex-col items-start text-left space-y-6">
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-[#F4F6F1] border border-[#DDE2D9] px-3.5 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#050705] shadow-sm">
+              PROVA, NÃO APENAS PROMESSA
+            </span>
+            
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-[40px] font-black tracking-tight text-[#050705] leading-[1.18]">
+              Como nossa médica parceira alcançou mais de <span className="text-[#2E8B00]">R$ 220 mil/mês</span> com previsibilidade e agenda cheia
+            </h2>
+
+            <p className="text-sm sm:text-base lg:text-lg text-[#4A554A] leading-relaxed font-medium">
+              Veja como o alinhamento comercial com vendedora dedicada e gestão ativa de tráfego transformou a rotina e a rentabilidade dos procedimentos.
+            </p>
+
+            <div className="pt-2 w-full sm:w-auto">
+              <button
+                onClick={scrollToForm}
+                className="w-full sm:w-auto inline-flex h-[54px] items-center justify-center gap-2.5 rounded-lg bg-[#8CFF00] hover:bg-[#7AE000] px-8 text-xs sm:text-sm font-black uppercase tracking-wider text-[#050705] transition-all cursor-pointer shadow-lg hover:shadow-[0_0_25px_rgba(140,255,0,0.3)]"
+              >
+                QUERO O MESMO MECANISMO NA MINHA CLÍNICA
+                <ArrowRight className="h-4.5 w-4.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Lado Direito: Vídeo do Depoimento 2 */}
+          <div className="lg:col-span-5 flex flex-col items-center justify-center">
+            <div className="relative w-full max-w-[300px] sm:max-w-[340px] aspect-[9/16] rounded-2xl border-2 border-[#DDE2D9] bg-[#050705] overflow-hidden shadow-2xl group hover:border-[#8CFF00] transition-all duration-300">
+              <video
+                src="/videos/dep-dramarcela.webm"
+                controls
+                playsInline
+                preload="metadata"
+                className="w-full h-full object-cover rounded-2xl"
+              />
+            </div>
+            <span className="mt-3 text-xs font-bold text-[#667066] uppercase tracking-wider flex items-center gap-1.5">
+              <Play className="h-3.5 w-3.5 fill-[#2E8B00] text-[#2E8B00]" /> Assista ao relato completo
+            </span>
+          </div>
+
+        </div>
+
       </div>
     </section>
   );
