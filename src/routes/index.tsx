@@ -1093,21 +1093,21 @@ function CaseDraSamaraSection() {
         {/* DIVISOR SUTIL ENTRE OS DEPOIMENTOS */}
         <div className="border-t border-[#DDE2D9]" />
 
-        {/* DEPOIMENTO 2 — SEGUNDO DEPOIMENTO (DUPLICADO PARA VOCÊ PERSONALIZAR) */}
+        {/* DEPOIMENTO 2 — DRA. LANNAY */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
           
           {/* Lado Esquerdo: Textos e Chamada para Ação */}
           <div className="lg:col-span-7 flex flex-col items-start text-left space-y-6">
-            <span className="inline-flex items-center gap-1.5 rounded-md bg-[#F4F6F1] border border-[#DDE2D9] px-3.5 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#050705] shadow-sm">
-              PROVA, NÃO APENAS PROMESSA
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-[#050705] border border-[#252A25] px-3.5 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#8CFF00] shadow-sm">
+              MAIS QUE TRÁFEGO, GESTÃO E PREVISIBILIDADE
             </span>
             
             <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-[40px] font-black tracking-tight text-[#050705] leading-[1.18]">
-              Como nossa médica parceira alcançou mais de <span className="text-[#2E8B00]">R$ 220 mil/mês</span> com previsibilidade e agenda cheia
+              Como a Dra. Lannay, cirurgiã-dentista, saiu da frustração com agências e hoje fatura <span className="text-[#2E8B00]">+400 mil reais por mês</span> com previsibilidade usando a FA
             </h2>
 
             <p className="text-sm sm:text-base lg:text-lg text-[#4A554A] leading-relaxed font-medium">
-              Veja como o alinhamento comercial com vendedora dedicada e gestão ativa de tráfego transformou a rotina e a rentabilidade dos procedimentos.
+              Ela já estava desacreditada do tráfego pago até implantar nossa visão completa de geração de demanda, comercial e dados. Hoje, com acompanhamento diário, semanal e mensal, ela domina os números da clínica e decide o crescimento com segurança.
             </p>
 
             {/* Botão no Desktop (abaixo do texto) */}
@@ -1126,7 +1126,8 @@ function CaseDraSamaraSection() {
           <div className="lg:col-span-5 flex flex-col items-center justify-center">
             <div className="relative w-full max-w-[300px] sm:max-w-[340px] aspect-[9/16] rounded-2xl border-2 border-[#DDE2D9] bg-[#050705] overflow-hidden shadow-2xl group hover:border-[#8CFF00] transition-all duration-300">
               <video
-                src="/videos/dep-dramarcela.webm"
+                src="https://fazendoacontecer.site/wp-content/uploads/2026/06/lannay.webm"
+                poster="/thumb lannay.webp"
                 controls
                 playsInline
                 preload="metadata"
